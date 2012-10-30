@@ -1,4 +1,4 @@
-package test.com.example.document;
+package test.com.william.document;
 
 import net.csdn.common.exception.AutoGeneration;
 import net.csdn.mongo.Document;

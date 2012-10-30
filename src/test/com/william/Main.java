@@ -1,10 +1,10 @@
-package test.com.example;
+package test.com.william;
 
 import net.csdn.common.settings.ImmutableSettings;
 import net.csdn.common.settings.InternalSettingsPreparer;
 import net.csdn.common.settings.Settings;
 import net.csdn.mongo.MongoMongo;
-import test.com.example.document.Blog;
+import test.com.william.document.Blog;
 
 import java.io.InputStream;
 
