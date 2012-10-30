@@ -25,7 +25,7 @@ public class Main {
 
         //configure MongoMongo
         try {
-            MongoMongo.CSDNMongoConfiguration csdnMongoConfiguration = new MongoMongo.CSDNMongoConfiguration("development", settings, Main.class.getClassLoader());
+            MongoMongo.CSDNMongoConfiguration csdnMongoConfiguration = new MongoMongo.CSDNMongoConfiguration("development", settings, Main.class);
             MongoMongo.configure(csdnMongoConfiguration);
         } catch (Exception e) {
             e.printStackTrace();
