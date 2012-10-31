@@ -1,43 +1,157 @@
 ## Welcome to MongoMongo
 
-MongoMongo is a Java ODM framework for MongoDB. Just like [ActiveORM](https://github.com/allwefantasy/active_orm),simple,convenient,and powerfull.
+MongoMongo is an Object-Document-Mapper (ODM) for MongoDB written in Java.
 
+The philosophy of MongoMongo is to provide a familiar API to Java developers who have been using [ActiveORM](https://github.com/allwefantasy/active_orm) or hibernate,
+while leveraging the power of MongoDB's schemaless and performant document-based design,
+dynamic queries, and atomic modifier operations.
+
+
+##Sample code
+
+```java
+```java
+public class Blog extends Document {
+    static {
+        storeIn("blogs");
+        //the only diffrence bettween related and embedded  is here.Using *Embedded Suffix,and without ForeighKey declaired
+        hasManyEmbedded("articles", new Options(map(
+                Options.n_kclass, Article.class
+        )));
+
+    }
+
+    public AssociationEmbedded articles() {
+        throw new AutoGeneration();
+    }
+
+
+    //属性啦
+    private String userName;
+    private String blogTitle;
+
+    //properties and their access methods
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getBlogTitle() {
+        return blogTitle;
+    }
+
+    public void setBlogTitle(String blogTitle) {
+        this.blogTitle = blogTitle;
+    }
+
+
+
+}
+
+
+public class Article extends Document {
+    static {
+        storeIn("articles");
+        belongsToEmbedded("blog", new Options(map(
+                Options.n_kclass, Blog.class
+        )));
+    }
+
+    public AssociationEmbedded blog() {
+        throw new AutoGeneration();
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getBody() {
+        return body;
+    }
+
+    public void setBody(String body) {
+        this.body = body;
+    }
+
+    public String title;
+    public String body;
+}
+
+public class Usage{
+  public static void main(String[] args){
+
+     Blog blog = Blog.where(map("userName","sexy java")).in(map("id",list(1,2,3))).singleFetch();
+     blog.articles().create(map("title","i am title","body","i am body"));
+     blog.save();
+
+  }
+
+}
+```
 
 ## Getting Started
 
-1. download it
+#### Integrate following code  to your application.
+
+When you write a  web application,you should create a filter
+For example:
 
 ```java
-   git clone git://github.com/allwefantasy/mongomongo.git
+
+public class FirstFilter implements Filter {
+
+    public void doFilter(ServletRequest req, ServletResponse res,
+            FilterChain chain) throws IOException, ServletException {
+        chain.doFilter(req, res);
+    }
+    public void init(FilterConfig config) throws ServletException {
+            // Actually this means you should put your mongo configuration in a yaml file.And then load it.
+            InputStream inputStream = FirstFilter.class.getResourceAsStream("application_for_test.yml");
+            Settings settings = InternalSettingsPreparer.simplePrepareSettings(ImmutableSettings.Builder.EMPTY_SETTINGS,
+                    inputStream);
+
+            //when settings have been build ,now we can configure MongoMongo
+            try {
+                MongoMongo.CSDNMongoConfiguration csdnMongoConfiguration = new MongoMongo.CSDNMongoConfiguration("development", settings, FirstFilter.class);
+                MongoMongo.configure(csdnMongoConfiguration);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+    }
+    public void destroy() {
+
+    }
+}
+
 ```
 
-2. intergrated to your application. 
+and then modify your web.xml file
+
+```xml
+<filter>
+    <filter-name>FirstFilter</filter-name>
+    <filter-class>
+        com.example.filters.FirstFilter
+    </filter-class>
+</filter>
+<filter-mapping>
+    <filter-name>FirstFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+When you write Normal Application,just put the code in filter to your main method.
 
 
-
-```java
-
-       // Actually this means you should put your mongo configuration in a yaml file.And then load it.
-        InputStream inputStream = Main.class.getResourceAsStream("application_for_test.yml");
-        Settings settings = InternalSettingsPreparer.simplePrepareSettings(ImmutableSettings.Builder.EMPTY_SETTINGS,
-                inputStream);
-
-        //when settings have been build ,now we can configure MongoMongo
-        try {
-            MongoMongo.CSDNMongoConfiguration csdnMongoConfiguration = new MongoMongo.CSDNMongoConfiguration("development", settings, Main.class);
-            MongoMongo.configure(csdnMongoConfiguration);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        //Everything is done.Now free to use! 
-        Blog blog = Blog.create(map("userName", "yes", "_id", 1000));
-        blog.save();
-        blog = Blog.findById(1000);
-   
-``` 
-
-3 configuration file demo
+#### Configuration file demo
 
 ```java
 development:
@@ -55,9 +169,7 @@ application:
 ```
 
 
-4 create models and using them.
-
-
+#### Demo
 MongoDB storage is  json-style.So there are two kind of relationship.
 Traditonal relationship like ORM,and Embedded Relationship.
 
