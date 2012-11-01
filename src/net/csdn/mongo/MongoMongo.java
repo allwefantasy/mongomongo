@@ -34,6 +34,9 @@ public class MongoMongo {
 
     private static CSDNMongoConfiguration mongoConfiguration;
 
+    public static CSDNMongoConfiguration getMongoConfiguration() {
+        return mongoConfiguration;
+    }
 
     private static final String defaultHostName = "127.0.0.1";
     private static final int defaultHostPort = 27017;
@@ -84,6 +87,11 @@ public class MongoMongo {
         private Settings settings;
         private Injector injector;
         private ClassPool classPool;
+
+        public Class getClassLoader() {
+            return classLoader;
+        }
+
         private Class classLoader;
 
         public Settings getSettings() {

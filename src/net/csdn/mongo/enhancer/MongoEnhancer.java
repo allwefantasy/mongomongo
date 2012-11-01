@@ -2,9 +2,11 @@ package net.csdn.mongo.enhancer;
 
 import javassist.*;
 import net.csdn.common.Strings;
+import net.csdn.common.logging.CSLogger;
+import net.csdn.common.logging.Loggers;
 import net.csdn.common.logging.support.MessageFormat;
 import net.csdn.common.settings.Settings;
-
+import net.csdn.mongo.MongoMongo;
 
 import java.io.DataInputStream;
 import java.lang.reflect.Modifier;
@@ -21,6 +23,7 @@ import static net.csdn.common.logging.support.MessageFormat.format;
 public class MongoEnhancer extends Enhancer {
 
     private Settings settings;
+    private CSLogger logger = Loggers.getLogger(MongoEnhancer.class);
 
     public MongoEnhancer(Settings settings) {
         this.settings = settings;
@@ -260,7 +263,10 @@ public class MongoEnhancer extends Enhancer {
     @Override
     public void enhanceThisClass2(List<CtClass> ctClasses) throws Exception {
         for (CtClass ctClass : ctClasses) {
-            ctClass.toClass();
+            logger.info(MongoMongo.getMongoConfiguration().getClassLoader().getClassLoader() + " load " + ctClass.getName());
+            ctClass.toClass(MongoMongo.getMongoConfiguration().getClassLoader().getClassLoader(), MongoMongo.getMongoConfiguration().getClassLoader().getProtectionDomain());
         }
     }
+
+
 }
