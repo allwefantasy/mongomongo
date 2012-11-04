@@ -56,6 +56,15 @@ public class Document {
     public String associationEmbeddedName;
 
 
+    public <T> T attr(String key, Class<T> clzz) {
+        return (T) attributes.get(key);
+    }
+
+    public Document attr(String key, Object obj) {
+        attributes.put(key, obj);
+        return this;
+    }
+
     /*
     *  +Class Methods+ will be copied into subclass when system startup.
     *  you should access them using class methods instead of directly accessing;
@@ -124,7 +133,7 @@ public class Document {
      #
      # Example:
      #
-     # <tt>Person.store_in :populdation</tt>
+     # <tt>Person.store_in(populdation)</tt>
      #
      # Warning: you should call this Class Method in subclass.
     */
@@ -144,16 +153,6 @@ public class Document {
     }
 
 
-    /*
-    def generate_key
-       if primary_key
-         values = primary_key.collect { |key| @attributes[key] }
-         @attributes[:_id] = values.join(" ").parameterize.to_s
-       else
-         @attributes[:_id] = Mongo::ObjectID.new.to_s unless id
-       end
-    end
-    */
     public void key(String... names) {
 
     }
@@ -166,15 +165,7 @@ public class Document {
         Delete.execute(this);
     }
 
-    /*
-      # Remove a child document from this parent +Document+. Will reset the
-      # memoized association and notify the parent of the change.
-      def remove(child)
-        name = child.association_name
-        reset(name) { @attributes.remove(name, child.attributes) }
-        notify
-      end
-     */
+
     public void remove(Document child) {
         String name = child.associationEmbeddedName;
         AssociationEmbedded association = this.associationEmbedded().get(name);

@@ -10,7 +10,6 @@ dynamic queries, and atomic modifier operations.
 ##Sample code
 
 ```java
-```java
 public class Blog extends Document {
     static {
         storeIn("blogs");
@@ -96,16 +95,30 @@ public class Usage{
 }
 ```
 
-## Getting Started
+## Installation
 
-#### Integrate following code  to your application.
+### Prerequisites
+There are few things you need to have in your toolbox before tackling a web application using MongoMongo.
 
-When you write a  web application,you should create a filter
+* A good to advanced knowledge of Java.
+* Have good knowledge of your web framework if using one.
+* A thorough understanding of MongoDB.
+
+Anyway ,you also  should notice that MongoMongo now is at version 1.0.There are a lot features to develop in order
+to take advantage of MongoDB.
+If you application is simple, i recommend you just use MongoMongo since it can reduce a lot of jobs from operating
+MongoDB.
+
+### Installation
+
+I suppose you use it in a standard Servlet Container like Tomcat,Jetty. In order to make ActiveORM work properly,
+you will write a filter like follows(the core code is in init.The name of filter as yourself)
+
+
 For example:
 
 ```java
-
-public class FirstFilter implements Filter {
+public class StartUpActiveORMFilter implements Filter {
 
     public void doFilter(ServletRequest req, ServletResponse res,
             FilterChain chain) throws IOException, ServletException {
@@ -137,246 +150,196 @@ and then modify your web.xml file
 
 ```xml
 <filter>
-    <filter-name>FirstFilter</filter-name>
+    <filter-name>StartUpActiveORMFilter</filter-name>
     <filter-class>
-        com.example.filters.FirstFilter
+        com.example.filters.StartUpActiveORMFilter
     </filter-class>
 </filter>
 <filter-mapping>
-    <filter-name>FirstFilter</filter-name>
+    <filter-name>StartUpActiveORMFilter</filter-name>
     <url-pattern>/*</url-pattern>
 </filter-mapping>
 ```
 
-When you write Normal Application,just put the code in filter to your main method.
+#### Configuration
 
+MongoMongo configuration can be done through a yaml file that specifies your options and database sessions.
+The normal configuration is as follows,
+which sets the default session to "127.0.0.1:27017" , provides a single database in that session named "wow",
+put documents in  `com.example.document` package.
 
-#### Configuration file demo
+```yaml
+#mode
+mode:
+  development
+#mode=production
 
-```java
+###############datasource config##################
+#mysql,mongodb,redis等数据源配置方式
 development:
     datasources:
-       mongodb:
+        mongodb:
            host: 127.0.0.1
            port: 27017
-           database: data_center
+           database: wow
            disable: false
 
+
+production:
+    datasources:
+        mongodb:
+           host: 127.0.0.1
+           port: 27017
+           database: wow
+
+
+
+###############application config##################
+#tell MongoMongo where is your document classes
+
+
 application:
-    document:   com.example.document
-    
-       
+   document:   com.example.document
 ```
 
+##Documents
 
-#### Demo
-MongoDB storage is  json-style.So there are two kind of relationship.
-Traditonal relationship like ORM,and Embedded Relationship.
-
-
-let us begin with Traditonal relationship. Each Model have his owe collection in MongoDB.
-
-```java
-public class Person extends Document {
-    //configure your model
-    static {
-        //store Person in MongoDB collection named "persons"
-        storeIn("persons");
-        
-        //build the relationship bettween Person and Address.
-        //just tell me Class and ForeignKey name.
-        
-        hasMany("addresses", new Options(map(
-                Options.n_kclass, Address.class,
-                Options.n_foreignKey, "person_id"
-        )));
-        
-        hasOne("idcard", new Options(map(
-                Options.n_kclass, IdCard.class,
-                Options.n_foreignKey, "person_id"
-        )));
-    }
-
-    //declare this method without implementation,keep method name according to convension of association.
-    //the purpose of this method is to active IDE code assist.
-    public Association addresses() {
-        throw new AutoGeneration();
-    }
-
-    public Association idcard() {
-        throw new AutoGeneration();
-    }
-
-    //fied names.no special. it is optinal
-    private String name;
-    private Integer bodyLength;
+Documents are the core objects in MongoMongo and any object that is to be persisted to the database must extends `net.csdn.mongo.Document`.
+The representation of a Document in MongoDB is a BSON object that is very similar to a Java Map or JSON object.
+But cause of the rigid grammar in Java,it's a really tough thing to operate MongoDB using MongoDB Java Driver.  Extends
+`net.csdn.mongo.Document` will make your document more powerful and just like you are using a ORM.
+Documents can be stored in their own collections in the database, or can be embedded in other Documents n levels deep.
 
 
-    //let them auto generated by IDE.then leave them,
-    
-    public String getName() {
-        return name;
-    }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+###Storage
 
-    public Integer getBodyLength() {
-        return bodyLength;
-    }
-
-    public void setBodyLength(Integer bodyLength) {
-        this.bodyLength = bodyLength;
-    }
-}
-
-
-public class Address extends Document {
-    static {
-         
-        storeIn("addresses");
-
-        belongsTo("person", new Options(
-                map(
-                        Options.n_kclass, Person.class,
-                        Options.n_foreignKey, "person_id"
-                )
-
-        ));
-    }
-
-    public Association person() {
-        throw new AutoGeneration();
-    }
-
-
-    private String location;
-
-    public String getLocation() {
-        return location;
-    }
-
-    public void setLocation(String location) {
-        this.location = location;
-    }
-}
-```
-
-Since you have deine models,now you can use them.
-
-```java
-//create a person from Hash
-Person person = Person.create(map(
-                "_id", 100,
-                "name", "google",
-                "bodyLength", 10
-        ));
-
-//save it
-person.save();
-
-//add a new address to person's address collection,then save the relation
-person.addresses().build(map("_id", 77, "location", "天国的世界")).save();
-
-//query critiria
-List<Person> persons = Person.where(map("name","google")).fetch();
-
-//find by id
-Person person = Person.findById(100);
-
-//you can find many id at one time
-List<Person> persons = Person.find(list(100,1000));
-
-person.addresses().filter().findById(77);
-
-person.addresses().filter().where(map("_id",77)).singleFetch();
-
-//delete the person
-person.remove();
-
-```
-
-
-Now let us check embedded documents relationship.
-
+You can configure your document in 'static block'.As a Javaer maybe you prefer using Annotation,but 'static block' is more flexible.
+Annotation have too much limitation,for example,can not hold a complex object.
 
 ```java
 public class Blog extends Document {
     static {
         storeIn("blogs");
-        //the only diffrence bettween related and embedded  is here.Using *Embedded Suffix,and without ForeighKey declaired
-        hasManyEmbedded("articles", new Options(map(
-                Options.n_kclass, Article.class
-        )));
-
     }
-
-    public AssociationEmbedded articles() {
-        throw new AutoGeneration();
-    }
-    
-    
-    //属性啦
-    private String userName;
-    private String blogTitle;
-
-    //properties and their access methods
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
-
-    public String getBlogTitle() {
-        return blogTitle;
-    }
-
-    public void setBlogTitle(String blogTitle) {
-        this.blogTitle = blogTitle;
-    }
-
-  
-
-}
-
-
-public class Article extends Document {
-    static {
-        storeIn("articles");
-        belongsToEmbedded("blog", new Options(map(
-                Options.n_kclass, Blog.class
-        )));
-    }
-
-    public AssociationEmbedded blog() {
-        throw new AutoGeneration();
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getBody() {
-        return body;
-    }
-
-    public void setBody(String body) {
-        this.body = body;
-    }
-
-    public String title;
-    public String body;
-}
+ }
 ```
 
-The Usage of embedded Relationship is the same.
+storeIn("blogs") means you store you data in 'blogs' collection when using Blog.
+
+###Fields
+Even though MongoDB is a schemaless database, most uses will be with web applications where form parameters always come to the server as strings.
+MongoMongo provides an easy mechanism for transforming these strings into their appropriate types through the definition of fields
+ in your document. And the other benefit is ,you can manipulate a object field instead of a Map key .
+
+ ```java
+ public class Blog extends Document {
+
+     //properties and their access methods
+     public String getUserName() {
+         return userName;
+     }
+
+     public void setUserName(String userName) {
+         this.userName = userName;
+     }
+
+     public String getBlogTitle() {
+         return blogTitle;
+     }
+
+     public void setBlogTitle(String blogTitle) {
+         this.blogTitle = blogTitle;
+     }
+
+     private String userName;
+     private String blogTitle;
+
+ }
+ ```
+ however,fields definition is optional. If you do not have any fields in document,you can access them as follows:
+
+ ```
+ public class Blog extends Document {
+
+ }
+ //get a field
+ String userName = blog.attr("userName",String.class);
+ //set a field
+ blog.attr("userName","gangNan Style")
+ ```
+
+ ### Persistence
+
+####create
+
+```java
+Person person = Person.create(map(
+     first_name, "Heinrich",
+     last_name, "Heine"
+     ));
+
+```
+Remember,create just return a Person object,if you wanna persist it in MongoDB,you should invoke 'save' method manually.
+
+```java
+ person.save();
+```
+
+####remove
+
+```java
+  Person person = Person.findById(10);
+  person.remove();
+```
+
+###Querying
+
+All queries in MongoMongo are Criteria,
+which is a chainable and lazily evaluated wrapper to a MongoDB dynamic query.
+Criteria only touch the database when you manually invoke `fetch()` or 'sinleFetch()'.
+
+##Queryable DSL
+
+MongoMongo's main query DSL is provided by `net.csdn.mongo.Criteria` class.
+Most method that is available on `net.csdn.mongo.Criteria` as well as off the model's class.
+
+```java
+Band.where(map(name,"Depeche Mode"))
+Band.
+  where(map("founded.gte" ,"1980-1-1")).
+  in(map("name", list("Tool", "Deftones" )))
+```
+
+With each chained method on a criteria, a newly cloned criteria is returned with the new query added.
+This is so that with scoping or exposures, for example, the original queries are not modified and reusable.
+
+for now ,Methods  supported by MongoMongo as follows:
+
+ * count
+ * where
+ * findById
+ * find
+ * not
+ * all
+ * and
+ * in
+ * notIn
+ * select
+ * order
+ * skip
+ * limit
+ * first
+ * last
+
+
+
+
+
+
+
+
+
 
 
 
