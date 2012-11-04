@@ -111,14 +111,14 @@ MongoDB.
 
 ### Installation
 
-I suppose you use it in a standard Servlet Container like Tomcat,Jetty. In order to make ActiveORM work properly,
+I suppose you use it in a standard Servlet Container like Tomcat,Jetty. In order to make MongoMongo work properly,
 you will write a filter like follows(the core code is in init.The name of filter as yourself)
 
 
 For example:
 
 ```java
-public class StartUpActiveORMFilter implements Filter {
+public class StartUpMongoMongoFilter implements Filter {
 
     public void doFilter(ServletRequest req, ServletResponse res,
             FilterChain chain) throws IOException, ServletException {
@@ -150,13 +150,13 @@ and then modify your web.xml file
 
 ```xml
 <filter>
-    <filter-name>StartUpActiveORMFilter</filter-name>
+    <filter-name>StartUpMongoMongoFilter</filter-name>
     <filter-class>
-        com.example.filters.StartUpActiveORMFilter
+        com.example.filters.StartUpMongoMongoFilter
     </filter-class>
 </filter>
 <filter-mapping>
-    <filter-name>StartUpActiveORMFilter</filter-name>
+    <filter-name>StartUpMongoMongoFilter</filter-name>
     <url-pattern>/*</url-pattern>
 </filter-mapping>
 ```
