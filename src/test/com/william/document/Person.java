@@ -2,6 +2,7 @@ package test.com.william.document;
 
 import net.csdn.common.exception.AutoGeneration;
 import net.csdn.mongo.Document;
+import net.csdn.mongo.annotations.BeforeSave;
 import net.csdn.mongo.association.Association;
 import net.csdn.mongo.association.Options;
 
@@ -24,6 +25,11 @@ public class Person extends Document {
                 Options.n_kclass, IdCard.class,
                 Options.n_foreignKey, "person_id"
         )));
+    }
+
+    @BeforeSave
+    public void beforeSave() {
+        System.out.println(this.getName() + " will be saved");
     }
 
     public Association addresses() {

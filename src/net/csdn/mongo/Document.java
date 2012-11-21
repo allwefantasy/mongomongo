@@ -3,8 +3,11 @@ package net.csdn.mongo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
+import net.csdn.common.collections.WowCollections;
 import net.csdn.common.exception.AutoGeneration;
 import net.csdn.common.reflect.ReflectHelper;
+import net.csdn.common.reflect.WowMethod;
+import net.csdn.mongo.annotations.*;
 import net.csdn.mongo.association.*;
 import net.csdn.mongo.commands.Delete;
 import net.csdn.mongo.commands.Save;
@@ -14,33 +17,34 @@ import net.csdn.mongo.embedded.HasManyAssociationEmbedded;
 import net.csdn.mongo.embedded.HasOneAssociationEmbedded;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static net.csdn.common.collections.WowCollections.list;
-import static net.csdn.common.collections.WowCollections.map;
+import static net.csdn.common.collections.WowCollections.*;
+import static net.csdn.common.logging.support.MessageFormat.format;
 
 /**
  * User: WilliamZhu
  * Date: 12-10-16
  * Time: 下午8:11
- * # The +Document+ class is the Parent Class of All MongoDB model,
- * # this means any MongoDB model class should extends this class.
- * #
- * # Once your class extends Document,you get all ODM(Object Data Mapping )
- * # and +net.csdn.mongo.Criteria+ (A convenient DSL) power.
- * #
- * # Example setup:
- * #
- * # ```java
- * # public class Person extends Document{
- * #    static{
- * #         storeIn("persons")
- * #     }
- * # }
- * #```
- * #
+ * <p/>
+ * The +Document+ class is the Parent Class of All MongoDB model,
+ * this means any MongoDB model class should extends this class.
+ * <p/>
+ * Once your class extends Document,you get all ODM(Object Data Mapping )
+ * and +net.csdn.mongo.Criteria+ (A convenient DSL) power.
+ * <p/>
+ * Example setup:
+ * <p/>
+ * ```java
+ * public class Person extends Document{
+ * static{
+ * storeIn("persons")
+ * }
+ * }
+ * ```
  */
 public class Document {
 
@@ -153,10 +157,6 @@ public class Document {
     }
 
 
-    public void key(String... names) {
-
-    }
-
     public void save() {
         Save.execute(this, false);
     }
@@ -248,6 +248,10 @@ public class Document {
         return associationsEmbedded;
     }
 
+    public void updateAttributes(Map attr) {
+
+    }
+
     public DBObject reload() {
         attributes = collection().findOne(map("_id", attributes.get("_id")));
         return attributes;
@@ -306,6 +310,38 @@ public class Document {
     }
 
 
+    public String toString() {
+        String attrs = join(w_map(attributes.toMap(), new WowCollections.MapIterator<String, Object>() {
+            @Override
+            public Object iterate(String key, Object value) {
+                return format("{}: {}", key, value);
+            }
+        }), ",");
+        return "#<" + this.getClass().getSimpleName() + " _id: " + id() + ", " + attrs + ">";
+    }
+
+
+    /*
+    # Return the root +Document+ in the object graph. If the current +Document+
+      # is the root object in the graph it will return self.
+      def _root
+        object = self
+        while (object._parent) do object = object._parent; end
+        object || self
+      end
+     */
+    public Document _root() {
+        Document doc = this;
+        while (doc._parent != null) {
+            doc = doc._parent;
+        }
+        return doc == null ? this : doc;
+    }
+
+    public boolean newRecord(boolean saved) {
+        return new_record = saved;
+    }
+
     //bind Criteria
 
     public static Criteria where(Map conditions) {
@@ -351,6 +387,77 @@ public class Document {
 
     public static <T extends Document> List<T> find(List list) {
         throw new AutoGeneration();
+    }
+
+    protected Map<Callbacks.Callback, List<WowMethod>> callbacks = map();
+
+    private void collectCallback() {
+        Method[] methods = this.getClass().getDeclaredMethods();
+        for (Method method : methods) {
+            WowMethod wowMethod = new WowMethod(this, method);
+
+            if (method.isAnnotationPresent(BeforeSave.class)) {
+                putAndAdd(Callbacks.Callback.before_save, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(BeforeCreate.class)) {
+                putAndAdd(Callbacks.Callback.before_create, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(BeforeDestroy.class)) {
+                putAndAdd(Callbacks.Callback.before_destroy, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(BeforeUpdate.class)) {
+                putAndAdd(Callbacks.Callback.before_update, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(BeforeValidation.class)) {
+                putAndAdd(Callbacks.Callback.before_validation, wowMethod);
+            }
+
+
+            if (method.isAnnotationPresent(AfterCreate.class)) {
+                putAndAdd(Callbacks.Callback.after_create, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(AfterDestory.class)) {
+                putAndAdd(Callbacks.Callback.after_destroy, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(AfterSave.class)) {
+                putAndAdd(Callbacks.Callback.after_save, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(AfterUpdate.class)) {
+                putAndAdd(Callbacks.Callback.after_update, wowMethod);
+            }
+
+            if (method.isAnnotationPresent(AfterValidation.class)) {
+                putAndAdd(Callbacks.Callback.after_validation, wowMethod);
+            }
+
+        }
+    }
+
+    public void runCallbacks(Callbacks.Callback callback) {
+        if (callbacks.size() == 0) {
+            collectCallback();
+        }
+        List<WowMethod> wowMethods = callbacks.get(callback);
+        if (wowMethods == null) return;
+        for (WowMethod wowMethod : wowMethods) {
+            wowMethod.invoke();
+        }
+
+    }
+
+    private void putAndAdd(Callbacks.Callback key, WowMethod item) {
+        if (callbacks.containsKey(key)) {
+            callbacks.get(key).add(item);
+        } else {
+            callbacks.put(key, list(item));
+        }
     }
 
 }
