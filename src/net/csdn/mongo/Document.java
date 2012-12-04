@@ -3,6 +3,7 @@ package net.csdn.mongo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
+import net.csdn.common.Strings;
 import net.csdn.common.collections.WowCollections;
 import net.csdn.common.exception.AutoGeneration;
 import net.csdn.common.reflect.ReflectHelper;
@@ -10,11 +11,16 @@ import net.csdn.common.reflect.WowMethod;
 import net.csdn.mongo.annotations.*;
 import net.csdn.mongo.association.*;
 import net.csdn.mongo.commands.Delete;
+import net.csdn.mongo.commands.Insert;
 import net.csdn.mongo.commands.Save;
+import net.csdn.mongo.commands.Update;
 import net.csdn.mongo.embedded.AssociationEmbedded;
 import net.csdn.mongo.embedded.BelongsToAssociationEmbedded;
 import net.csdn.mongo.embedded.HasManyAssociationEmbedded;
 import net.csdn.mongo.embedded.HasOneAssociationEmbedded;
+import net.csdn.mongo.validate.ValidateParse;
+import net.csdn.mongo.validate.ValidateResult;
+import org.apache.commons.lang.StringUtils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -131,6 +137,11 @@ public class Document {
         return parent$_fields;
     }
 
+    public boolean merge(Map item) {
+        attributes.putAll(item);
+        copyAllAttributesToPojoFields();
+        return true;
+    }
 
     /*
      # setting the collection name to store in.
@@ -157,8 +168,59 @@ public class Document {
     }
 
 
-    public void save() {
-        Save.execute(this, false);
+    public boolean save() {
+        if (valid()) {
+            return Save.execute(this, false);
+        }
+        return false;
+    }
+
+    public boolean save(boolean validate) {
+        if (validate && valid()) {
+            return Save.execute(this, false);
+        }
+        return false;
+    }
+
+    public boolean insert() {
+        if (valid()) {
+            return Insert.execute(this, false);
+        }
+        return false;
+    }
+
+    public boolean insert(boolean validate) {
+        if (validate && valid()) {
+            return Insert.execute(this, false);
+        }
+        return false;
+    }
+
+
+    public boolean update() {
+        if (valid()) {
+            return Update.execute(this, false);
+        }
+        return false;
+    }
+
+    public boolean update(boolean validate) {
+        if (validate && valid()) {
+            return Update.execute(this, false);
+        }
+        return false;
+    }
+
+
+    public final List<ValidateResult> validateResults = list();
+    public final static List validateParses = list();
+
+    public boolean valid() {
+        if (validateResults.size() > 0) return false;
+        for (Object validateParse : validateParses) {
+            ((ValidateParse) validateParse).parse(this, this.validateResults);
+        }
+        return validateResults.size() == 0;
     }
 
     public void remove() {
@@ -212,11 +274,19 @@ public class Document {
                 String strKey = (String) key;
                 try {
                     if (allFields.contains(strKey)) {
-                        ReflectHelper.field(this, strKey, attributes.get(strKey));
+                        Object obj = attributes.get(strKey);
+                        Field target = ReflectHelper.findField(this.getClass(), strKey);
+                        Class clzz = target.getType();
+                        if (clzz != String.class) {
+                           obj = Strings.stringToNumber(obj);
+                        } else {
+                           obj = Strings.numberToString(obj);
+                        }
+                        ReflectHelper.field(this, strKey, obj);
                     }
 
                 } catch (Exception e) {
-                    //e.printStackTrace();
+                    e.printStackTrace();
                 }
             }
         }
@@ -314,6 +384,9 @@ public class Document {
         String attrs = join(w_map(attributes.toMap(), new WowCollections.MapIterator<String, Object>() {
             @Override
             public Object iterate(String key, Object value) {
+                if (value instanceof String) {
+                    value = StringUtils.substring((String) value, 0, 50);
+                }
                 return format("{}: {}", key, value);
             }
         }), ",");

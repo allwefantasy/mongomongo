@@ -14,7 +14,9 @@ import net.csdn.mongo.enhancer.MongoEnhancer;
 
 import java.io.DataInputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: WilliamZhu
@@ -164,6 +166,7 @@ public class MongoMongo {
     public static void loadDocuments() {
         try {
             new MongoDocumentLoader().load();
+            new MongoValidatorLoader().load();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -189,6 +192,24 @@ public class MongoMongo {
             });
 
             enhancer.enhanceThisClass2(classList);
+
+        }
+    }
+
+    public static class MongoValidatorLoader {
+
+        public void load() throws Exception {
+            Map<String, String> defaultMaps = new HashMap<String, String>();
+            defaultMaps.put("format", "net.csdn.mongo.validate.impl.Format");
+            defaultMaps.put("numericality", "net.csdn.mongo.validate.impl.Numericality");
+            defaultMaps.put("presence", "net.csdn.mongo.validate.impl.Presence");
+            defaultMaps.put("uniqueness", "net.csdn.mongo.validate.impl.Uniqueness");
+            defaultMaps.put("length", "net.csdn.mongo.validate.impl.Length");
+            defaultMaps.put("associated", "net.csdn.mongo.validate.impl.Associated");
+
+            for (Map.Entry<String, String> entry : defaultMaps.entrySet()) {
+                Document.validateParses.add(Class.forName(entry.getValue()).newInstance());
+            }
 
         }
     }

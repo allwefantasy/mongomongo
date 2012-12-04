@@ -48,7 +48,7 @@ public class Criteria {
 
 
     public Criteria aggregate() {
-       // ReflectHelper.method("", "");
+        // ReflectHelper.method("", "");
         return this;
     }
 
@@ -99,6 +99,11 @@ public class Criteria {
 
     public Document findById(Object id) {
         return where(map("_id", id)).singleFetch();
+    }
+
+    //{ "$set" => { pending: false }}, new: true
+    public void find_and_modify() {
+
     }
 
     /*
