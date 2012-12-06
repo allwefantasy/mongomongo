@@ -20,6 +20,7 @@ import net.csdn.mongo.embedded.HasManyAssociationEmbedded;
 import net.csdn.mongo.embedded.HasOneAssociationEmbedded;
 import net.csdn.mongo.validate.ValidateParse;
 import net.csdn.mongo.validate.ValidateResult;
+import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang.StringUtils;
 
 import java.lang.reflect.Field;
@@ -262,6 +263,15 @@ public class Document {
     }
 
     protected void copyAllAttributesToPojoFields() {
+        try {
+            BeanUtils.copyProperties(this, this.attributes);
+        } catch (Exception e) {
+            innerCopyAllAttributesToPojoFields();
+        }
+
+    }
+
+    protected void innerCopyAllAttributesToPojoFields() {
         Field[] fields = this.getClass().getDeclaredFields();
         List allFields = list();
         for (Field field : fields) {
@@ -278,9 +288,9 @@ public class Document {
                         Field target = ReflectHelper.findField(this.getClass(), strKey);
                         Class clzz = target.getType();
                         if (clzz != String.class) {
-                           obj = Strings.stringToNumber(obj);
+                            obj = Strings.stringToNumber(obj);
                         } else {
-                           obj = Strings.numberToString(obj);
+                            obj = Strings.numberToString(obj);
                         }
                         ReflectHelper.field(this, strKey, obj);
                     }
@@ -381,7 +391,7 @@ public class Document {
 
 
     public String toString() {
-        String attrs = join(w_map(attributes.toMap(), new WowCollections.MapIterator<String, Object>() {
+        String attrs = join(iterate_map(attributes.toMap(), new WowCollections.MapIterator<String, Object>() {
             @Override
             public Object iterate(String key, Object value) {
                 if (value instanceof String) {
@@ -426,7 +436,7 @@ public class Document {
         throw new AutoGeneration();
     }
 
-    public static Criteria order(List orderBy) {
+    public static Criteria order(Map orderBy) {
         throw new AutoGeneration();
     }
 
@@ -454,11 +464,15 @@ public class Document {
         throw new AutoGeneration();
     }
 
-    public static <T extends Document> T findById(Object id) {
+    public static <T> T findById(Object id) {
         throw new AutoGeneration();
     }
 
-    public static <T extends Document> List<T> find(List list) {
+    public static <T> List<T> find(List list) {
+        throw new AutoGeneration();
+    }
+
+    public static <T> List<T> findAll() {
         throw new AutoGeneration();
     }
 
@@ -531,6 +545,10 @@ public class Document {
         } else {
             callbacks.put(key, list(item));
         }
+    }
+
+    public static Criteria nativeQuery(String tableName) {
+        return new Criteria(tableName);
     }
 
 }

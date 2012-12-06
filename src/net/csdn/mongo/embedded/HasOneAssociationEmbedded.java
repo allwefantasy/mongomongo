@@ -1,6 +1,5 @@
 package net.csdn.mongo.embedded;
 
-import com.mongodb.DBObject;
 import net.csdn.common.reflect.ReflectHelper;
 import net.csdn.mongo.Criteria;
 import net.csdn.mongo.Document;
@@ -33,7 +32,7 @@ public class HasOneAssociationEmbedded implements AssociationEmbedded {
         this.kclass = kclass;
         this.document = document;
         this.name = name;
-        DBObject childMap = (DBObject) document.attributes().get(name);
+        Map childMap = (Map) document.attributes().get(name);
         if (childMap != null) {
             child = (Document) ReflectHelper.staticMethod(kclass, "create", childMap);
             child._parent = document;

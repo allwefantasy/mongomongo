@@ -2,6 +2,7 @@ package net.csdn.mongo;
 
 import com.google.inject.Injector;
 import com.mongodb.DB;
+import com.mongodb.DBCollection;
 import com.mongodb.Mongo;
 import javassist.ClassPool;
 import javassist.CtClass;
@@ -157,6 +158,11 @@ public class MongoMongo {
 
     public static ClassPool classPool() {
         return mongoConfiguration.classPool;
+    }
+
+
+    public DBCollection collection(String tableName) {
+        return database().getCollection(tableName);
     }
 
     public DB database() {

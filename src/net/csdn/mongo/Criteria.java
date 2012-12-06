@@ -4,6 +4,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
+import net.csdn.common.collections.WowCollections;
 import net.csdn.common.reflect.ReflectHelper;
 
 import java.util.List;
@@ -41,6 +42,7 @@ import static net.csdn.common.collections.WowCollections.map;
 public class Criteria {
     // attr_reader :klass, :options, :selector
     private Class<Document> kclass;
+    private String tableName;
     private Map options = map();
     private Map selector = map();
 
@@ -93,11 +95,15 @@ public class Criteria {
         return this;
     }
 
-    public List<Document> find(List list) {
+    public <T> List<T> find(List list) {
         return in(map("_id", list)).fetch();
     }
 
-    public Document findById(Object id) {
+    public <T> List<T> findAll() {
+        return all(map()).fetch();
+    }
+
+    public <T> T findById(Object id) {
         return where(map("_id", id)).singleFetch();
     }
 
@@ -178,12 +184,17 @@ public class Criteria {
     #
     # Returns: <tt>subclass of document</tt>
      */
-    public <T extends Document> T singleFetch() {
+    public <T> T singleFetch() {
 
         DBObject dbObject = collection().findOne(translateMapToDBObject(selector), translateMapToDBObject(processOptions()));
         if (dbObject == null) return null;
-        Document document = (Document) ReflectHelper.staticMethod(kclass, "create", dbObject.toMap());
-        return (T) document;
+        if (kclass == null) {
+            return (T) dbObject.toMap();
+        } else {
+            return (T) ReflectHelper.staticMethod(kclass, "create", dbObject.toMap());
+        }
+
+
     }
 
 
@@ -210,7 +221,12 @@ public class Criteria {
 
         while (dbCursor.hasNext()) {
             DBObject dbObject = dbCursor.next();
-            result.add(ReflectHelper.staticMethod(kclass, "create", dbObject.toMap()));
+            if (kclass == null) {
+                result.add(dbObject.toMap());
+            } else {
+                result.add(ReflectHelper.staticMethod(kclass, "create", dbObject.toMap()));
+            }
+
         }
         return result;
     }
@@ -237,11 +253,11 @@ public class Criteria {
     }
 
 
-    public <T extends Document> T first() {
+    public <T> T first() {
         return singleFetch();
     }
 
-    public <T extends Document> T one() {
+    public <T> T one() {
         return first();
     }
 
@@ -251,7 +267,7 @@ public class Criteria {
     );
 
 
-    public <T extends Document> T last() {
+    public <T> T last() {
         Map<String, Object> sorting = (Map) options.get("sort");
         if (sorting == null) sorting = map("_id", SortMap.get("desc"));
         options.put("sort", sorting);
@@ -268,17 +284,23 @@ public class Criteria {
     }
 
     private DBObject translateMapToDBObject(Map map) {
-        DBObject query = new BasicDBObject();
-        query.putAll(map);
-        return query;
+        return WowCollections.translateMapToDBObject(map);
     }
 
     public DBCollection collection() {
-        return (DBCollection) ReflectHelper.staticMethod(kclass, "collection");
+        if (kclass != null) {
+            return (DBCollection) ReflectHelper.staticMethod(kclass, "collection");
+        }
+        return Document.mongoMongo.collection(tableName);
+
     }
 
     public Criteria(Class<Document> kclass) {
         this.kclass = kclass;
+    }
+
+    public Criteria(String tableName) {
+        this.tableName = tableName;
     }
 
 

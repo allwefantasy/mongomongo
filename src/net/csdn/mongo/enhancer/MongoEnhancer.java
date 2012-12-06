@@ -41,12 +41,16 @@ public class MongoEnhancer extends Enhancer {
             "notIn",
             "create",
             "findById",
-            "find"
+            "find",
+            "findAll"
     );
 
     @Override
     public CtClass enhanceThisClass(DataInputStream dataInputStream) throws Exception {
         CtClass ctClass = classPool.makeClassIfNew(dataInputStream);
+        if (!ctClass.subtypeOf(classPool.get("net.csdn.mongo.Document"))) {
+            return ctClass;
+        }
         CtClass document = ctClass.getSuperclass();
 
 
@@ -152,6 +156,11 @@ public class MongoEnhancer extends Enhancer {
         String entityName = ctClass.getName();
         //String simpleEntityName = ctClass.getSimpleName();
 
+        CtMethod findAll = CtMethod.make("public static java.util.List findAll() {" +
+                "        return new net.csdn.mongo.Criteria(" + entityName + ".class).findAll();" +
+                "    }", ctClass);
+        ctClass.addMethod(findAll);
+
         //create
         CtMethod create = CtMethod.make("public static net.csdn.mongo.Document create(java.util.Map params) { " +
                 entityName + " doc = new " + entityName + "();" +
@@ -241,7 +250,7 @@ public class MongoEnhancer extends Enhancer {
         ctClass.addMethod(notIn);
 
         //findById
-        CtMethod findById = CtMethod.make("public static net.csdn.mongo.Document findById(Object params) {" +
+        CtMethod findById = CtMethod.make("public static Object findById(Object params) {" +
                 "        return new net.csdn.mongo.Criteria(" + entityName + ".class).findById(" +
                 "params" +
                 ");" +
@@ -249,13 +258,13 @@ public class MongoEnhancer extends Enhancer {
         ctClass.addMethod(findById);
 
 
-        //find
-        CtMethod find = CtMethod.make("public static java.util.List find(java.util.List params) {" +
+        //findMulti
+        CtMethod findMulti = CtMethod.make("public static java.util.List find(java.util.List params) {" +
                 "        return new net.csdn.mongo.Criteria(" + entityName + ".class).find(" +
                 "params" +
                 ");" +
                 "    }", ctClass);
-        ctClass.addMethod(find);
+        ctClass.addMethod(findMulti);
 
 
     }
