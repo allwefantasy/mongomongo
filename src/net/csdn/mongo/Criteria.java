@@ -208,7 +208,7 @@ public class Criteria {
         Integer limit = (Integer) options.get("limit");
 
 
-        DBCursor dbCursor = collection().find(translateMapToDBObject(selector), translateMapToDBObject(options));
+        DBCursor dbCursor = collection().find(translateMapToDBObject(selector));
 
         if (sort != null)
             dbCursor.sort(translateMapToDBObject(sort));
@@ -219,14 +219,18 @@ public class Criteria {
         if (limit != null)
             dbCursor.limit(limit);
 
-        while (dbCursor.hasNext()) {
-            DBObject dbObject = dbCursor.next();
-            if (kclass == null) {
-                result.add(dbObject.toMap());
-            } else {
-                result.add(ReflectHelper.staticMethod(kclass, "create", dbObject.toMap()));
-            }
+        try {
+            while (dbCursor.hasNext()) {
+                DBObject dbObject = dbCursor.next();
+                if (kclass == null) {
+                    result.add(dbObject.toMap());
+                } else {
+                    result.add(ReflectHelper.staticMethod(kclass, "create", dbObject.toMap()));
+                }
 
+            }
+        } finally {
+            dbCursor.close();
         }
         return result;
     }
