@@ -1,6 +1,5 @@
 package net.csdn.mongo.embedded;
 
-import net.csdn.mongo.Criteria;
 import net.csdn.mongo.Document;
 
 import java.util.List;
@@ -21,9 +20,15 @@ public interface AssociationEmbedded {
 
     public void save();
 
-    public List find(Object... ids);
+    public List find(Map where);
+
+    public List find();
 
     public <T extends Document> T findOne();
 
-    public Criteria filter();
+
+    public Class kclass();
+
+    public String name();
+
 }

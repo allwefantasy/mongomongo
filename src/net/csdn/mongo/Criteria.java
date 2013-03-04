@@ -5,39 +5,43 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import net.csdn.common.collections.WowCollections;
-import net.csdn.common.reflect.ReflectHelper;
+import net.csdn.mongo.embedded.AssociationEmbedded;
+
 
 import java.util.List;
 import java.util.Map;
 
+import static net.csdn.common.collections.WowCollections.isEmpty;
 import static net.csdn.common.collections.WowCollections.list;
 import static net.csdn.common.collections.WowCollections.map;
+import static net.csdn.common.reflect.ReflectHelper.staticField;
+import static net.csdn.common.reflect.ReflectHelper.staticMethod;
 
 /**
  * User: WilliamZhu
  * Date: 12-10-17
  * Time: 下午4:57
  * <p/>
- * # The +Criteria+ class is the core object needed in MongoSupport to retrieve
- * # objects from the database. It is a DSL that essentially sets up the
- * # selector and options arguments that get passed on to a <tt>Mongo Collection</tt>
- * # in the Java driver. Each method on the +Criteria+ returns self to they
- * # can be chained in order to create a readable criterion to be executed
- * # against the database.
- * #
- * # Example setup:
- * #
- * # ```java
- * # Criteria criteria = new Criteria()
- * # ```
- * #
- * # ```java
- * # criteria.select("filed").where(map("field","value")).skip(20).limit(20)
- * # ```
- * #
- * # ```java
- * # <tt>criteria.execute</tt>
- * #```
+ * The +Criteria+ class is the core object needed in MongoSupport to retrieve
+ * objects from the database. It is a DSL that essentially sets up the
+ * selector and options arguments that get passed on to a <tt>Mongo Collection</tt>
+ * in the Java driver. Each method on the +Criteria+ returns self to they
+ * can be chained in order to create a readable criterion to be executed
+ * against the database.
+ * <p/>
+ * Example setup:
+ * <p/>
+ * ```java
+ * Criteria criteria = new Criteria()
+ * ```
+ * <p/>
+ * ```java
+ * criteria.select("filed").where(map("field","value")).skip(20).limit(20)
+ * ```
+ * <p/>
+ * ```java
+ * <tt>criteria.execute()</tt>
+ * ```
  */
 public class Criteria {
     // attr_reader :klass, :options, :selector
@@ -138,6 +142,69 @@ public class Criteria {
         return collection().find(translateMapToDBObject(selector)).count();
     }
 
+    public int length() {
+        return count();
+    }
+
+    //Update attributes of the first matching document.
+    public void update(Map obj) {
+        collection().update(translateMapToDBObject(selector), translateMapToDBObject(map("$set", obj)));
+    }
+
+    public void updateMulti(Map obj) {
+        innerUpdate("$set", obj);
+    }
+
+    public void addToSet(Map obj) {
+        innerUpdate("$addToSet", obj);
+    }
+
+    public void inc(Map obj) {
+        innerUpdate("$inc", obj);
+    }
+
+    public void pop(Map obj) {
+        innerUpdate("$pop", obj);
+    }
+
+    public void pull(Map obj) {
+        innerUpdate("$pull", obj);
+    }
+
+    public void pullAll(Map obj) {
+        innerUpdate("$pullAll", obj);
+    }
+
+    public void push(Map obj) {
+        innerUpdate("$push", obj);
+    }
+
+    public void pushAll(Map obj) {
+        innerUpdate("$pushAll", obj);
+    }
+
+    public void rename(Map obj) {
+        innerUpdate("$rename", obj);
+    }
+
+    public void set(Map obj) {
+        innerUpdate("$set", obj);
+    }
+
+    public void unset(Map obj) {
+        innerUpdate("$unset", obj);
+    }
+
+    public void remove() {
+        collection().findAndRemove(translateMapToDBObject(selector));
+    }
+
+
+    private void innerUpdate(String operateType, Map obj) {
+        collection().updateMulti(translateMapToDBObject(selector), translateMapToDBObject(map(operateType, obj)));
+    }
+
+
     public Criteria in(Map _selector) {
         updateSelector(_selector, "$in");
         return this;
@@ -149,6 +216,10 @@ public class Criteria {
         return this;
     }
 
+
+    //    public Criteria mapReduce(){
+//        collection().ma
+//    }
     /*
     # Adds a criterion to the +Criteria+ that specifies values where none
     # should match in order to return results. This is similar to an SQL "NOT IN"
@@ -186,21 +257,67 @@ public class Criteria {
      */
     public <T> T singleFetch() {
 
-        DBObject dbObject = collection().findOne(translateMapToDBObject(selector), translateMapToDBObject(processOptions()));
-        if (dbObject == null) return null;
-        if (kclass == null) {
-            return (T) dbObject.toMap();
-        } else {
-            return (T) ReflectHelper.staticMethod(kclass, "create", dbObject.toMap());
-        }
 
+        options.put("limit", 1);
 
+        List<T> objects = fetch();
+
+        if (isEmpty(objects)) return null;
+        return objects.get(0);
     }
 
+    public boolean exists() {
+        return count() > 0;
+    }
+
+    private void processSelector() {
+
+        if (kclass != null) {
+            selector = (Map) staticMethod(kclass, "translateKeyForParams", selector);
+
+        }
+    }
+
+    String prefix = "";
+
+    private void init() {
+        String prefix = "";
+        if (kclass != null && isEmpty(prefix)) {
+            Class jack = kclass;
+            Class tempClass = (Class) staticMethod(kclass, "_classParent");
+            while (tempClass != null) {
+                Map<String, AssociationEmbedded> associations_embedded = (Map) staticField(tempClass, "parent$_associations_embedded");
+                if (associations_embedded != null) {
+                    for (Map.Entry<String, AssociationEmbedded> entry : associations_embedded.entrySet()) {
+                        if (entry.getValue().kclass() == jack) {
+                            prefix = entry.getKey() + "." + prefix;
+                            break;
+                        }
+                    }
+                }
+                jack = (Class) staticMethod(tempClass, "_classParent");
+                if (jack == null) break;
+                jack = tempClass;
+                tempClass = jack;
+            }
+
+            if (tempClass == null) {
+                tempClass = kclass;
+            }
+            collection = (DBCollection) staticMethod(tempClass, "collection");
+        }
+
+        if (collection == null && !isEmpty(tableName)) collection = Document.mongoMongo.collection(tableName);
+        if (!isEmpty(prefix)) {
+            prefix += ".";
+        }
+    }
 
     public List fetch() {
 
         processOptions();
+        processSelector();
+
         List result = list();
 
         Map sort = (Map) options.get("sort");
@@ -225,7 +342,7 @@ public class Criteria {
                 if (kclass == null) {
                     result.add(dbObject.toMap());
                 } else {
-                    result.add(ReflectHelper.staticMethod(kclass, "create", dbObject.toMap()));
+                    result.add(staticMethod(kclass, "create", dbObject.toMap()));
                 }
 
             }
@@ -275,8 +392,10 @@ public class Criteria {
         Map<String, Object> sorting = (Map) options.get("sort");
         if (sorting == null) sorting = map("_id", SortMap.get("desc"));
         options.put("sort", sorting);
-
-        return (T) (fetch().get(0));
+        options.put("limit", 1);
+        List result = fetch();
+        if (result == null) return null;
+        return (T) (result.get(0));
     }
 
     private Criteria updateSelector(Map attributes, String operator) {
@@ -291,20 +410,20 @@ public class Criteria {
         return WowCollections.translateMapToDBObject(map);
     }
 
-    public DBCollection collection() {
-        if (kclass != null) {
-            return (DBCollection) ReflectHelper.staticMethod(kclass, "collection");
-        }
-        return Document.mongoMongo.collection(tableName);
+    private DBCollection collection;
 
+    public DBCollection collection() {
+        return collection;
     }
 
     public Criteria(Class<Document> kclass) {
         this.kclass = kclass;
+        init();
     }
 
     public Criteria(String tableName) {
         this.tableName = tableName;
+        init();
     }
 
 

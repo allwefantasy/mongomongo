@@ -1,6 +1,5 @@
 package net.csdn.mongo.embedded;
 
-import net.csdn.mongo.Criteria;
 import net.csdn.mongo.Document;
 import net.csdn.mongo.association.Options;
 
@@ -59,7 +58,12 @@ public class BelongsToAssociationEmbedded implements AssociationEmbedded {
     }
 
     @Override
-    public List find(Object... ids) {
+    public List find(Map map) {
+        throw new UnsupportedOperationException("not support in BelongsToAssociationEmbedded");
+    }
+
+    @Override
+    public List find() {
         return list(master);
     }
 
@@ -68,9 +72,14 @@ public class BelongsToAssociationEmbedded implements AssociationEmbedded {
         return (T) master;
     }
 
+    @Override
+    public Class kclass() {
+        return kclass;
+    }
 
     @Override
-    public Criteria filter() {
-        return null;
+    public String name() {
+        return name;
     }
+
 }

@@ -1,12 +1,14 @@
 package net.csdn.mongo.enhancer;
 
 import javassist.*;
-import net.csdn.common.Strings;
+import javassist.bytecode.AccessFlag;
 import net.csdn.common.logging.CSLogger;
 import net.csdn.common.logging.Loggers;
 import net.csdn.common.logging.support.MessageFormat;
 import net.csdn.common.settings.Settings;
 import net.csdn.mongo.MongoMongo;
+import net.csdn.mongo.annotations.Transient;
+import net.csdn.mongo.annotations.Validate;
 
 import java.io.DataInputStream;
 import java.lang.reflect.Modifier;
@@ -40,6 +42,7 @@ public class MongoEnhancer extends Enhancer {
             "not",
             "notIn",
             "create",
+            "create9",
             "findById",
             "find",
             "findAll"
@@ -63,7 +66,7 @@ public class MongoEnhancer extends Enhancer {
         enhanceCriteriaClassMethods(ctClass);
 
         //enhance getter/setter methods to put them into attributes field
-        enhanceSetterMethods(ctClass);
+        enhanceGetterSetterMethods(ctClass);
 
         //enhance related association
         enhanceAssociationMethods(ctClass);
@@ -98,29 +101,62 @@ public class MongoEnhancer extends Enhancer {
         }
     }
 
-    private void enhanceSetterMethods(CtClass ctClass) throws Exception {
-        CtMethod[] modelMethods = ctClass.getMethods();
 
-        for (CtMethod ctMethod : modelMethods) {
-            if (ctMethod.getName().startsWith("set")) {
-                try {
-                    String fieldName = Strings.extractFieldFromGetSetMethod(ctMethod.getName());
+    private boolean isFinal(CtField ctField) {
+        return Modifier.isFinal(ctField.getModifiers());
+    }
 
-                    ctClass.getDeclaredField(fieldName);
-                    String methodBody = MessageFormat.format(
-                            "attributes.put(\"{}\",{});",
-                            fieldName,
-                            fieldName
-                    );
-                    ctMethod.insertBefore(methodBody);
+    private boolean isStatic(CtField ctField) {
+        return Modifier.isStatic(ctField.getModifiers());
+    }
 
-                } catch (NotFoundException exception) {
-                    //when NotFoundException happens that means it is NOT a get/set method
+    private void enhanceGetterSetterMethods(CtClass ctClass) throws Exception {
+
+
+        //hibernate 可能需要 setter/getter 方法，好吧 我们为它添加这些方法
+
+        for (CtField ctField : ctClass.getDeclaredFields()) {
+            if (isFinal(ctField) || isStatic(ctField) || ctField.hasAnnotation(Validate.class) || ctField.hasAnnotation(Transient.class) || ctField.getName().contains("$"))
+                continue;
+            // Property name
+            String originalPropertyName = ctField.getName();
+            String propertyName = ctField.getName().substring(0, 1).toUpperCase() + ctField.getName().substring(1);
+            String getter = "get" + propertyName;
+            String setter = "set" + propertyName;
+
+            try {
+                CtMethod ctMethod = ctClass.getDeclaredMethod(getter);
+                if (ctMethod.getParameterTypes().length > 0 || Modifier.isStatic(ctMethod.getModifiers())) {
+                    throw new NotFoundException("it's not a getter !");
                 }
+            } catch (NotFoundException noGetter) {
 
+                String code = "public " + ctField.getType().getName() + " " + getter + "() { return this." + ctField.getName() + "; }";
+                CtMethod getMethod = CtMethod.make(code, ctClass);
+                getMethod.setModifiers(getMethod.getModifiers() | AccessFlag.SYNTHETIC);
+                ctClass.addMethod(getMethod);
+            }
+            String methodBody = MessageFormat.format(
+                    "attributes.put({},{});",
+                    "translateFromAlias(\"" + originalPropertyName + "\")",
+                    "value"
+            );
+            try {
+                CtMethod ctMethod = ctClass.getDeclaredMethod(setter);
+                if (ctMethod.getParameterTypes().length != 1 || !ctMethod.getParameterTypes()[0].equals(ctField.getType()) || Modifier.isStatic(ctMethod.getModifiers())) {
+                    throw new NotFoundException("it's not a setter !");
+                }
+                ctClass.getClassFile().getMethods().remove(ctClass.getClassFile().getMethod(ctMethod.getName()));
+            } catch (NotFoundException noSetter) {
 
             }
+            CtMethod setMethod = CtMethod.make("public void " + setter + "(" + ctField.getType().getName() + " value) { " + methodBody + " this." + ctField.getName() + " = value; }", ctClass);
+            setMethod.setModifiers(setMethod.getModifiers() | AccessFlag.SYNTHETIC);
+            ctClass.addMethod(setMethod);
+
         }
+
+
     }
 
 
@@ -164,11 +200,18 @@ public class MongoEnhancer extends Enhancer {
         //create
         CtMethod create = CtMethod.make("public static net.csdn.mongo.Document create(java.util.Map params) { " +
                 entityName + " doc = new " + entityName + "();" +
-                "doc.attributes.putAll(params);" +
+                "doc.attributes.putAll(translateKeyForParams(params));" +
                 "doc.copyAllAttributesToPojoFields();" +
                 "return doc;}", ctClass);
         ctClass.addMethod(create);
 
+        //create9
+        CtMethod create9 = CtMethod.make("public static net.csdn.mongo.Document create9(java.util.Map params) { " +
+                entityName + " doc = new " + entityName + "();" +
+                "doc.attributes=translateKeyForParams(params);" +
+                "doc.copyAllAttributesToPojoFields();" +
+                "return doc;}", ctClass);
+        ctClass.addMethod(create9);
 
         String newCriteriaPiece = "new net.csdn.mongo.Criteria(" + entityName + ".class)";
         String returnTypeCriteriaPiece = "net.csdn.mongo.Criteria";

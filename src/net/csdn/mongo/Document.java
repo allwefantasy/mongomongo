@@ -3,12 +3,13 @@ package net.csdn.mongo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
-import net.csdn.common.Strings;
 import net.csdn.common.collections.WowCollections;
 import net.csdn.common.exception.AutoGeneration;
-import net.csdn.common.reflect.ReflectHelper;
+import net.csdn.common.logging.CSLogger;
+import net.csdn.common.logging.Loggers;
 import net.csdn.common.reflect.WowMethod;
 import net.csdn.mongo.annotations.*;
+import net.csdn.mongo.annotations.Transient;
 import net.csdn.mongo.association.*;
 import net.csdn.mongo.commands.Delete;
 import net.csdn.mongo.commands.Insert;
@@ -23,14 +24,16 @@ import net.csdn.mongo.validate.ValidateResult;
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang.StringUtils;
 
-import java.lang.reflect.Field;
+import java.beans.*;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static net.csdn.common.collections.WowCollections.*;
 import static net.csdn.common.logging.support.MessageFormat.format;
+import static net.csdn.common.reflect.ReflectHelper.*;
 
 /**
  * User: WilliamZhu
@@ -55,25 +58,63 @@ import static net.csdn.common.logging.support.MessageFormat.format;
  */
 public class Document {
 
+    private static CSLogger logger = Loggers.getLogger(Document.class);
+
     //instance attributes
-    protected DBObject attributes = new BasicDBObject();
+    @Transient
+    protected Map attributes = map();
+    @Transient
     protected boolean new_record = true;
+    @Transient
     protected Map<String, Association> associations = map();
+    @Transient
     protected Map<String, AssociationEmbedded> associationsEmbedded = map();
 
 
     //for embedded association
+    @Transient
     public Document _parent;
+
+    @Transient
     public String associationEmbeddedName;
 
 
     public <T> T attr(String key, Class<T> clzz) {
-        return (T) attributes.get(key);
+        return (T) attributes.get((String) staticMethod(this.getClass(), "translateFromAlias", key));
     }
 
     public Document attr(String key, Object obj) {
-        attributes.put(key, obj);
+        attributes.put((String) staticMethod(this.getClass(), "translateFromAlias", key), obj);
         return this;
+    }
+
+    public static String translateFromAlias(String key) {
+        if (parent$_alias_names != null && parent$_alias_names.containsKey(key)) {
+            return parent$_alias_names.get(key);
+        }
+        return key;
+    }
+
+    public static Map translateKeyForParams(Map params) {
+        Map newParams = map();
+        for (Object key : params.keySet()) {
+            String keyStr = (String) key;
+            newParams.put(translateFromAlias(keyStr), params.get(key));
+        }
+        params.clear();
+        params.putAll(newParams);
+        return params;
+    }
+
+    public static String translateToAlias(String key) {
+        if (parent$_alias_names != null) {
+            for (Map.Entry<String, String> entry : parent$_alias_names.entrySet()) {
+                if (key.equals(entry.getValue())) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return key;
     }
 
     /*
@@ -101,6 +142,7 @@ public class Document {
     protected static String parent$_collectionName;
     protected static Map<String, Association> parent$_associations;
     protected static Map<String, AssociationEmbedded> parent$_associations_embedded;
+    protected static Map<String, String> parent$_alias_names;
 
     public static MongoMongo mongoMongo;
 
@@ -160,11 +202,26 @@ public class Document {
         return parent$_collection;
     }
 
+    /*
+     index({ ssn: 1 }, { unique: true, name: "ssn_index" })
+     */
+    protected static void index(Map keys, Map indexOptions) {
+        parent$_collection.ensureIndex(translateMapToDBObject(keys), translateMapToDBObject(indexOptions));
+    }
+
+    protected static void alias(String originalName, String aliasName) {
+        if (parent$_alias_names == null) {
+            parent$_alias_names = map(aliasName, originalName);
+        } else {
+            parent$_alias_names.put(aliasName, originalName);
+        }
+    }
+
     public static <T extends Document> T create(Map map) {
         throw new AutoGeneration();
     }
 
-    public static <T extends Document> T create(DBObject object) {
+    public static <T extends Document> T create9(Map map) {
         throw new AutoGeneration();
     }
 
@@ -246,62 +303,48 @@ public class Document {
             }
 
         } else {
-            this.attributes().removeField(name);
+            this.attributes().remove(name);
         }
 
         this.associationEmbedded().get(name).remove(child);
         this.save();
     }
 
+    public void copyPojoFieldsToAllAttributes() {
 
-    /* +copySingleAttributeToPojoField+ and  +copyAllAttributesToPojoFields+
-      since all model have attributes property,so we should sync values between
-      Pojo fields and  attributes property
-    */
-    protected void copySingleAttributeToPojoField(String setterMethodName, Object param) {
-        ReflectHelper.method(this, setterMethodName, param);
-    }
-
-    protected void copyAllAttributesToPojoFields() {
         try {
-            BeanUtils.copyProperties(this, this.attributes);
-        } catch (Exception e) {
-            innerCopyAllAttributesToPojoFields();
-        }
+            List<PropertyDescriptor> fromPd = Arrays.asList(Introspector.getBeanInfo(this.getClass())
+                    .getPropertyDescriptors());
 
+            for (PropertyDescriptor pd : fromPd) {
+                if (pd.getName().equals("class")) continue;
+                this.attributes.put((String) staticMethod(this.getClass(), "translateFromAlias", pd.getName()), pd.getReadMethod().invoke(this));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-    protected void innerCopyAllAttributesToPojoFields() {
-        Field[] fields = this.getClass().getDeclaredFields();
-        List allFields = list();
-        for (Field field : fields) {
-            allFields.add(field.getName());
-        }
 
-        Set keys = attributes.keySet();
-        for (Object key : keys) {
-            if (key instanceof String) {
-                String strKey = (String) key;
-                try {
-                    if (allFields.contains(strKey)) {
-                        Object obj = attributes.get(strKey);
-                        Field target = ReflectHelper.findField(this.getClass(), strKey);
-                        Class clzz = target.getType();
-                        if (clzz != String.class) {
-                            obj = Strings.stringToNumber(obj);
-                        } else {
-                            obj = Strings.numberToString(obj);
-                        }
-                        ReflectHelper.field(this, strKey, obj);
-                    }
-
-                } catch (Exception e) {
-                    e.printStackTrace();
+    public void copyAllAttributesToPojoFields() {
+        DBObject newAttributes = new BasicDBObject();
+        newAttributes.putAll(this.attributes());
+        Map<String, String> tempMap = (Map<String, String>) staticField(this.getClass(), "parent$_alias_names");
+        try {
+            if (tempMap != null && tempMap.size() > 0) {
+                for (Map.Entry<String, String> entry : tempMap.entrySet()) {
+                    Object temp = this.attributes().get(entry.getValue());
+                    if (temp != null)
+                        newAttributes.put(entry.getKey(), temp);
                 }
             }
+            BeanUtils.copyProperties(this, newAttributes);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
     }
+
 
     public Object id() {
         return attributes.get("_id");
@@ -328,16 +371,12 @@ public class Document {
         return associationsEmbedded;
     }
 
-    public void updateAttributes(Map attr) {
-
-    }
-
-    public DBObject reload() {
-        attributes = collection().findOne(map("_id", attributes.get("_id")));
+    public Map reload() {
+        attributes.putAll(collection().findOne(map("_id", attributes.get("_id"))).toMap());
         return attributes;
     }
 
-    public DBObject attributes() {
+    public Map attributes() {
         return attributes;
     }
 
@@ -391,7 +430,7 @@ public class Document {
 
 
     public String toString() {
-        String attrs = join(iterate_map(attributes.toMap(), new WowCollections.MapIterator<String, Object>() {
+        String attrs = join(iterate_map(attributes, new WowCollections.MapIterator<String, Object>() {
             @Override
             public Object iterate(String key, Object value) {
                 if (value instanceof String) {
@@ -475,6 +514,7 @@ public class Document {
     public static <T> List<T> findAll() {
         throw new AutoGeneration();
     }
+
 
     protected Map<Callbacks.Callback, List<WowMethod>> callbacks = map();
 

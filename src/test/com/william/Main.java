@@ -1,5 +1,6 @@
 package test.com.william;
 
+import junit.framework.Assert;
 import net.csdn.common.settings.ImmutableSettings;
 import net.csdn.common.settings.InternalSettingsPreparer;
 import net.csdn.common.settings.Settings;
@@ -7,6 +8,7 @@ import net.csdn.mongo.MongoMongo;
 import test.com.william.document.Blog;
 
 import java.io.InputStream;
+import java.util.List;
 
 import static net.csdn.common.collections.WowCollections.map;
 
@@ -31,10 +33,22 @@ public class Main {
             e.printStackTrace();
         }
         //now you can use it
+
         Blog blog = Blog.create(map("userName", "yes", "_id", 1000));
         blog.save();
         blog = Blog.findById(1000);
-        System.out.println(blog.getUserName());
+        Assert.assertTrue("yes".equals(blog.getUserName()));
+
+        Blog blog2 = Blog.create(map("userName", "no", "_id", 1001));
+        blog2.save();
+        blog2 = Blog.findById(1001);
+        Assert.assertTrue("no".equals(blog2.getUserName()));
+
+        List<Blog> blogs = Blog.findAll();
+        Assert.assertTrue(blogs.size() >= 2);
+
+
+
 
     }
 

@@ -1,7 +1,6 @@
 package net.csdn.mongo.embedded;
 
 import net.csdn.common.reflect.ReflectHelper;
-import net.csdn.mongo.Criteria;
 import net.csdn.mongo.Document;
 import net.csdn.mongo.association.Options;
 
@@ -43,7 +42,7 @@ public class HasOneAssociationEmbedded implements AssociationEmbedded {
 
     @Override
     public AssociationEmbedded build(Map params) {
-        child = (Document) ReflectHelper.staticMethod(kclass, "create", params);
+        child = (Document) ReflectHelper.staticMethod(kclass, "create9", params);
         child._parent = document;
         child.associationEmbeddedName = name;
         return this;
@@ -52,7 +51,7 @@ public class HasOneAssociationEmbedded implements AssociationEmbedded {
     @Override
     public AssociationEmbedded remove(Document document) {
         child = null;
-        document.attributes().removeField(name);
+        document.attributes().remove(name);
         return this;
     }
 
@@ -69,8 +68,13 @@ public class HasOneAssociationEmbedded implements AssociationEmbedded {
     }
 
     @Override
-    public List find(Object... ids) {
+    public List find() {
         return list(child);
+    }
+
+    @Override
+    public List find(Map map) {
+        throw new UnsupportedOperationException("not support in HasOneAssociationEmbedded");
     }
 
     @Override
@@ -78,9 +82,15 @@ public class HasOneAssociationEmbedded implements AssociationEmbedded {
         return (T) child;
     }
 
+    @Override
+    public Class kclass() {
+        return kclass;
+    }
 
     @Override
-    public Criteria filter() {
-        return null;
+    public String name() {
+        return name;
     }
+
+
 }
