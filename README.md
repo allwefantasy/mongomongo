@@ -29,7 +29,7 @@ public class Blog extends Document {
     private String userName;
     private String blogTitle;
 
-    //properties and their access methods
+    //setter/getter methods,of cource , they are not required
     public String getUserName() {
         return userName;
     }
@@ -63,33 +63,16 @@ public class Article extends Document {
         throw new AutoGeneration();
     }
 
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getBody() {
-        return body;
-    }
-
-    public void setBody(String body) {
-        this.body = body;
-    }
-
-    public String title;
-    public String body;
+    private String title;
+    private String body;
 }
 
 public class Usage{
   public static void main(String[] args){
 
      Blog blog = Blog.where(map("userName","sexy java")).in(map("id",list(1,2,3))).singleFetch();
-     blog.articles().create(map("title","i am title","body","i am body"));
+     blog.articles().build(map("title","i am title","body","i am body"));
      blog.save();
-
   }
 
 }
@@ -175,7 +158,7 @@ mode:
 #mode=production
 
 ###############datasource config##################
-#mysql,mongodb,redis等数据源配置方式
+#mysql,mongodb,redis configuration
 development:
     datasources:
         mongodb:
@@ -227,6 +210,26 @@ public class Blog extends Document {
 
 storeIn("blogs") means you store you data in 'blogs' collection when using Blog.
 
+###Index And Alias
+
+You can configure your document in 'static block'.As a Javaer maybe you prefer using Annotation,but 'static block' is more flexible.
+Annotation have too much limitation,for example,can not hold a complex object.
+
+```java
+public class Blog extends Document {
+    static {
+        storeIn("blogs");
+	    alias("_id", "userName");
+	    index(map("name", -1), map());
+	    index(map("tags.count", -1), map());
+    }
+ }
+```
+when userName will be saved in db called _id;
+System will create a separate index for name and tags.count.
+
+
+
 ###Fields
 Even though MongoDB is a schemaless database, most uses will be with web applications where form parameters always come to the server as strings.
 MongoMongo provides an easy mechanism for transforming these strings into their appropriate types through the definition of fields
@@ -257,7 +260,7 @@ MongoMongo provides an easy mechanism for transforming these strings into their 
 
  }
  ```
- however,fields definition is optional. If you do not have any fields in document,you can access them as follows:
+ however,fields definition is optional. If you do not have any fields or acess methods in document,you can access them as follows:
 
  ```
  public class Blog extends Document {
@@ -297,7 +300,7 @@ Remember,create just return a Person object,if you wanna persist it in MongoDB,y
 
 All queries in MongoMongo are Criteria,
 which is a chainable and lazily evaluated wrapper to a MongoDB dynamic query.
-Criteria only touch the database when you manually invoke `fetch()` or 'sinleFetch()'.
+Criteria only touch the database when you manually invoke `fetch()` or  `sinleFetch()`.
 
 ##Queryable DSL
 
