@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static net.csdn.common.collections.WowCollections.isNull;
 import static net.csdn.common.logging.support.MessageFormat.format;
 
 /**
@@ -60,6 +61,7 @@ public abstract class BaseValidateParse implements ValidateParse {
     protected void iterateValidateInfo(Class clzz, String target, ValidateIterator validateIterator) {
         try {
             Map<String, Map> temps = (Map) ReflectHelper.staticMethod(clzz, "validate_info");
+            if (isNull(temps)) return;
             for (Map.Entry<String, Map> temp : temps.entrySet()) {
 
                 Map info = (Map) temp.getValue();
