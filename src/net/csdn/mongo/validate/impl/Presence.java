@@ -25,7 +25,7 @@ public class Presence extends BaseValidateParse {
         final Class clzz = target.getClass();
         iterateValidateInfo(clzz, ValidateHelper.presence, new ValidateParse.ValidateIterator() {
             @Override
-            public void iterate(String targetFieldName, Field field, Object info) throws Exception {
+            public void iterate(String targetFieldName, Object info) throws Exception {
                 String msg = notice;
                 if (info instanceof Map) msg = messageWithDefault((Map) info, notice);
                 Object value = getModelFieldValue(target,targetFieldName);

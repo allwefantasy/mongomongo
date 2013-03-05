@@ -12,6 +12,6 @@ public interface ValidateParse {
     public void parse(final Object target, final List<ValidateResult> validateResultList);
 
     interface ValidateIterator {
-        public void iterate(String targetFieldName, Field field, Object info) throws Exception;
+        public void iterate(String targetFieldName, Object info) throws Exception;
     }
 }

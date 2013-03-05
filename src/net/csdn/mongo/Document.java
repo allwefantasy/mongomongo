@@ -9,7 +9,6 @@ import net.csdn.common.logging.CSLogger;
 import net.csdn.common.logging.Loggers;
 import net.csdn.common.reflect.WowMethod;
 import net.csdn.mongo.annotations.*;
-import net.csdn.mongo.annotations.Transient;
 import net.csdn.mongo.association.*;
 import net.csdn.mongo.commands.Delete;
 import net.csdn.mongo.commands.Insert;
@@ -24,8 +23,8 @@ import net.csdn.mongo.validate.ValidateResult;
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang.StringUtils;
 
-import java.beans.*;
-import java.lang.reflect.InvocationTargetException;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
@@ -33,7 +32,8 @@ import java.util.Map;
 
 import static net.csdn.common.collections.WowCollections.*;
 import static net.csdn.common.logging.support.MessageFormat.format;
-import static net.csdn.common.reflect.ReflectHelper.*;
+import static net.csdn.common.reflect.ReflectHelper.staticField;
+import static net.csdn.common.reflect.ReflectHelper.staticMethod;
 
 /**
  * User: WilliamZhu
@@ -202,6 +202,19 @@ public class Document {
         return parent$_collection;
     }
 
+    protected static Map parent$_validate_info;
+
+    protected static void validate(String fieldName, Map validate) {
+        if (parent$_validate_info == null) {
+            parent$_validate_info = map();
+        }
+        parent$_validate_info = map(fieldName, validate);
+    }
+
+    protected static Map validate_info() {
+        return parent$_validate_info;
+    }
+
     /*
      index({ ssn: 1 }, { unique: true, name: "ssn_index" })
      */
@@ -274,10 +287,12 @@ public class Document {
     public final static List validateParses = list();
 
     public boolean valid() {
+        runCallbacks(Callbacks.Callback.before_validation);
         if (validateResults.size() > 0) return false;
         for (Object validateParse : validateParses) {
             ((ValidateParse) validateParse).parse(this, this.validateResults);
         }
+        runCallbacks(Callbacks.Callback.after_validation);
         return validateResults.size() == 0;
     }
 
@@ -518,8 +533,9 @@ public class Document {
 
     protected Map<Callbacks.Callback, List<WowMethod>> callbacks = map();
 
-    private void collectCallback() {
+    protected void collectCallback() {
         Method[] methods = this.getClass().getDeclaredMethods();
+        if (callbacks.size() > 0) return;
         for (Method method : methods) {
             WowMethod wowMethod = new WowMethod(this, method);
 
@@ -567,14 +583,14 @@ public class Document {
         }
     }
 
-    public void runCallbacks(Callbacks.Callback callback) {
+    public void runCallbacks(Callbacks.Callback callback, Object... params) {
         if (callbacks.size() == 0) {
             collectCallback();
         }
         List<WowMethod> wowMethods = callbacks.get(callback);
         if (wowMethods == null) return;
         for (WowMethod wowMethod : wowMethods) {
-            wowMethod.invoke();
+            wowMethod.invoke(params);
         }
 
     }

@@ -25,7 +25,7 @@ public class Save {
             //method(doc, "copyPojoFieldsToAllAttributes");
             //we cannot call doc.collection().remove() directly,because of the dam inheritance of static methods in java
             DBCollection collection = (DBCollection) staticMethod(doc.getClass(), "collection");
-            collection.insert(new BasicDBObject(doc.attributes()));
+            collection.save(new BasicDBObject(doc.attributes()));
             doc.runCallbacks(Callbacks.Callback.after_save);
         }
 

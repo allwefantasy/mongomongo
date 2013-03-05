@@ -4,7 +4,6 @@ import net.csdn.mongo.validate.BaseValidateParse;
 import net.csdn.mongo.validate.ValidateHelper;
 import net.csdn.mongo.validate.ValidateResult;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
@@ -21,13 +20,13 @@ public class Length extends BaseValidateParse {
         final Class clzz = target.getClass();
         iterateValidateInfo(clzz, ValidateHelper.length, new ValidateIterator() {
             @Override
-            public void iterate(String targetFieldName, Field field, Object info) throws Exception {
+            public void iterate(String targetFieldName, Object info) throws Exception {
                 String msg = notice;
                 if (info instanceof Map) msg = messageWithDefault((Map) info, notice);
                 Map length = (Map) info;
                 Integer minimum = (Integer) length.get(ValidateHelper.Length.minimum);
                 Integer maximum = (Integer) length.get(ValidateHelper.Length.maximum);
-                String value =  getModelFieldValue(target, targetFieldName)+"";
+                String value = getModelFieldValue(target, targetFieldName) + "";
                 if (value == null || value.isEmpty()) {
                     if (minimum != null) {
                         String too_short_msg = (String) length.get(ValidateHelper.Length.too_short);

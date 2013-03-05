@@ -51,22 +51,22 @@ public abstract class BaseValidateParse implements ValidateParse {
         }
     }
 
-    protected Object getModelFieldValue(Object obj,String name){
-          String method = "get" + name.substring(0, 1).toUpperCase() + name.substring(1);
-          return ReflectHelper.method(obj,method);
+    protected Object getModelFieldValue(Object obj, String name) {
+        String method = "get" + name.substring(0, 1).toUpperCase() + name.substring(1);
+        return ReflectHelper.method(obj, method);
     }
 
 
     protected void iterateValidateInfo(Class clzz, String target, ValidateIterator validateIterator) {
         try {
-            List<Field> fields = getValidateFields(clzz);
-            for (Field field : fields) {
-                field.setAccessible(true);
-                Map info = (Map) ((Map) field.get(null));
+            Map<String, Map> temps = (Map) ReflectHelper.staticMethod(clzz, "validate_info");
+            for (Map.Entry<String, Map> temp : temps.entrySet()) {
+
+                Map info = (Map) temp.getValue();
                 if (info == null) continue;
                 if (info.get(target) == null) continue;
                 Object wow = info.get(target);
-                validateIterator.iterate(field.getName().substring(1), field, wow);
+                validateIterator.iterate(temp.getKey(), wow);
             }
         } catch (Exception e) {
             e.printStackTrace();

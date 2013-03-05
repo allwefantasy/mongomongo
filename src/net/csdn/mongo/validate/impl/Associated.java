@@ -22,7 +22,7 @@ public class Associated extends BaseValidateParse {
         final Class clzz = target.getClass();
         iterateValidateInfo(clzz, ValidateHelper.associated, new ValidateParse.ValidateIterator() {
             @Override
-            public void iterate(String targetFieldName, Field field, Object info) throws Exception {
+            public void iterate(String targetFieldName, Object info) throws Exception {
                 List<String> listFields = (List) info;
                 for (String wow : listFields) {
                     Field objField = target.getClass().getDeclaredField(wow);

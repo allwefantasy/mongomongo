@@ -2,30 +2,35 @@
 
 MongoMongo is an Object-Document-Mapper (ODM) for MongoDB written in Java.
 
-The philosophy of MongoMongo is to provide a familiar API to Java developers who have been using [ActiveORM](https://github.com/allwefantasy/active_orm) or hibernate,
-while leveraging the power of MongoDB's schemaless and performant document-based design,
-dynamic queries, and atomic modifier operations.
+The philosophy of MongoMongo is to provide a familiar API to Java developers who have been using [ActiveORM](https://github.com/allwefantasy/active_orm) or Hibernate, while leveraging the power of MongoDB's schemaless and performant document-based design,dynamic queries, and atomic modifier operations.
 
 
 ##Sample code
 
-```java
+```
 public class Blog extends Document {
     static {
-        storeIn("blogs");
-        //the only diffrence bettween related and embedded  is here.Using *Embedded Suffix,and without ForeighKey declaired
+        
+        storeIn("blogs");                
         hasManyEmbedded("articles", new Options(map(
                 Options.n_kclass, Article.class
         )));
+        
+        //create index
+        index(map("blogTitle", -1), map(unique,true));
+
+        //validate uerName field
+        validate("userName",map(length,map(
+                minimum,5
+        )));
 
     }
-
+    
+    //association related
     public AssociationEmbedded articles() {
         throw new AutoGeneration();
     }
 
-
-    //属性啦
     private String userName;
     private String blogTitle;
 
@@ -52,8 +57,7 @@ public class Blog extends Document {
 
 
 public class Article extends Document {
-    static {
-        storeIn("articles");
+    static {        
         belongsToEmbedded("blog", new Options(map(
                 Options.n_kclass, Blog.class
         )));
@@ -100,13 +104,10 @@ you will write a filter like follows(the core code is in init.The name of filter
 
 For example:
 
-```java
+```
 public class StartUpMongoMongoFilter implements Filter {
 
-    public void doFilter(ServletRequest req, ServletResponse res,
-            FilterChain chain) throws IOException, ServletException {
-        chain.doFilter(req, res);
-    }
+   
     public void init(FilterConfig config) throws ServletException {
             // Actually this means you should put your mongo configuration in a yaml file.And then load it.
             InputStream inputStream = FirstFilter.class.getResourceAsStream("application_for_test.yml");
@@ -122,14 +123,12 @@ public class StartUpMongoMongoFilter implements Filter {
             }
 
     }
-    public void destroy() {
-
-    }
+    
 }
 
 ```
 
-and then modify your web.xml file
+and then modify your web.xml file,add your filter to web.xml.
 
 ```xml
 <filter>
@@ -210,7 +209,8 @@ public class Blog extends Document {
 
 storeIn("blogs") means you store you data in 'blogs' collection when using Blog.
 
-###Index And Alias
+
+###Index 
 
 You can configure your document in 'static block'.As a Javaer maybe you prefer using Annotation,but 'static block' is more flexible.
 Annotation have too much limitation,for example,can not hold a complex object.
@@ -218,24 +218,30 @@ Annotation have too much limitation,for example,can not hold a complex object.
 ```java
 public class Blog extends Document {
     static {
-        storeIn("blogs");
-	    alias("_id", "userName");
-	    index(map("name", -1), map());
-	    index(map("tags.count", -1), map());
+	    index(map("name", -1), map("unique", true, "name", "ssn_index"));	    
     }
  }
 ```
-when userName will be saved in db called _id;
-System will create a separate index for name and tags.count.
+then MongoMongo will create a index for `name` field called ssh_index.
 
+###Alias Example
+
+```java
+public class Blog extends Document {
+    static {      
+	    alias("_id", "userName");	   
+    }
+ }
+```
+
+MongoMongo will save userName as _id in MongoDB.
 
 
 ###Fields
-Even though MongoDB is a schemaless database, most uses will be with web applications where form parameters always come to the server as strings.
-MongoMongo provides an easy mechanism for transforming these strings into their appropriate types through the definition of fields
- in your document. And the other benefit is ,you can manipulate a object field instead of a Map key .
+Even though MongoDB is a schemaless database, most usage will be with web applications where form parameters always come to the server as strings.
+MongoMongo provides an easy mechanism for transforming these strings into their appropriate types through the definition of fields in your document. And the other benefit is ,you can manipulate a object field instead of a Map key. As we know,it's hard to operate Map in Java.
 
- ```java
+ ```
  public class Blog extends Document {
 
      //properties and their access methods
@@ -266,15 +272,17 @@ MongoMongo provides an easy mechanism for transforming these strings into their 
  public class Blog extends Document {
 
  }
+ 
  //get a field
  String userName = blog.attr("userName",String.class);
  //set a field
  blog.attr("userName","gangNan Style")
+ 
  ```
 
  ### Persistence
 
-####create
+####create Example
 
 ```java
 Person person = Person.create(map(
@@ -289,7 +297,7 @@ Remember,create just return a Person object,if you wanna persist it in MongoDB,y
  person.save();
 ```
 
-####remove
+####remove Example
 
 ```java
   Person person = Person.findById(10);
@@ -334,6 +342,37 @@ for now ,Methods  supported by MongoMongo as follows:
  * limit
  * first
  * last
+ 
+###Validate Example
+
+```
+public class TTUser extends Document {
+    static {
+        validate("userName",map(length,map(
+                minimum,5
+        )));
+
+    }
+ }
+```
+here we use validate method to define rule like this:
+userName's lenght should exceed 5.
+
+
+###Callback Example
+
+```
+public class TTUser extends Document {
+    @BeforeSave
+    private void beforeSave() {
+        System.out.println("i am saved");
+    }
+ }
+```
+
+when you invoke TTUser.save(),beforeSave method will be invoked.
+
+
 
 
 
