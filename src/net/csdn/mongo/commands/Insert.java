@@ -1,5 +1,6 @@
 package net.csdn.mongo.commands;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import net.csdn.common.reflect.ReflectHelper;
 import net.csdn.mongo.Callbacks;
@@ -19,7 +20,7 @@ public class Insert {
             doc.runCallbacks(Callbacks.Callback.before_save);
             //we cannot call doc.collection().remove() directly,because of the dam inheritance of static methods in java
             DBCollection collection = (DBCollection) ReflectHelper.staticMethod(doc.getClass(), "collection");
-            collection.insert(doc.attributes());
+            collection.insert(new BasicDBObject(doc.attributes()));
             doc.runCallbacks(Callbacks.Callback.after_save);
         }
 

@@ -23,7 +23,7 @@ public class Update {
             if (doc.id() == null) return false;
             DBCollection collection = (DBCollection) ReflectHelper.staticMethod(doc.getClass(), "collection");
             DBObject query = new BasicDBObject("_id", doc.id());
-            collection.update(query, doc.attributes());
+            collection.update(query,new BasicDBObject( doc.attributes()));
             doc.runCallbacks(Callbacks.Callback.after_update);
         }
 
