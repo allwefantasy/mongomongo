@@ -241,14 +241,14 @@ public class Document {
 
     public boolean save() {
         if (valid()) {
-            return Save.execute(this, false);
+            return Save.execute(this);
         }
         return false;
     }
 
     public boolean save(boolean validate) {
         if (validate && valid()) {
-            return Save.execute(this, false);
+            return Save.execute(this);
         }
         return false;
     }
