@@ -278,39 +278,9 @@ public class Criteria {
         }
     }
 
-    String prefix = "";
-
     private void init() {
-        String prefix = "";
-        if (kclass != null && isEmpty(prefix)) {
-            Class jack = kclass;
-            Class tempClass = (Class) staticMethod(kclass, "_classParent");
-            while (tempClass != null) {
-                Map<String, AssociationEmbedded> associations_embedded = (Map) staticField(tempClass, "parent$_associations_embedded");
-                if (associations_embedded != null) {
-                    for (Map.Entry<String, AssociationEmbedded> entry : associations_embedded.entrySet()) {
-                        if (entry.getValue().kclass() == jack) {
-                            prefix = entry.getKey() + "." + prefix;
-                            break;
-                        }
-                    }
-                }
-                jack = (Class) staticMethod(tempClass, "_classParent");
-                if (jack == null) break;
-                jack = tempClass;
-                tempClass = jack;
-            }
-
-            if (tempClass == null) {
-                tempClass = kclass;
-            }
-            collection = (DBCollection) staticMethod(tempClass, "collection");
-        }
-
+        collection = (DBCollection) staticMethod(kclass, "collection");
         if (collection == null && !isEmpty(tableName)) collection = Document.mongoMongo.collection(tableName);
-        if (!isEmpty(prefix)) {
-            prefix += ".";
-        }
     }
 
     public List fetch() {
