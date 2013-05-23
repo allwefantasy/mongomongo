@@ -5,16 +5,11 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import net.csdn.common.collections.WowCollections;
-import net.csdn.mongo.embedded.AssociationEmbedded;
-
 
 import java.util.List;
 import java.util.Map;
 
-import static net.csdn.common.collections.WowCollections.isEmpty;
-import static net.csdn.common.collections.WowCollections.list;
-import static net.csdn.common.collections.WowCollections.map;
-import static net.csdn.common.reflect.ReflectHelper.staticField;
+import static net.csdn.common.collections.WowCollections.*;
 import static net.csdn.common.reflect.ReflectHelper.staticMethod;
 
 /**
@@ -279,7 +274,9 @@ public class Criteria {
     }
 
     private void init() {
-        collection = (DBCollection) staticMethod(kclass, "collection");
+        if (kclass != null) {
+            collection = (DBCollection) staticMethod(kclass, "collection");
+        }
         if (collection == null && !isEmpty(tableName)) collection = Document.mongoMongo.collection(tableName);
     }
 
