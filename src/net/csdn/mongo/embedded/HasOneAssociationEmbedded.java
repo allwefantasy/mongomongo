@@ -33,7 +33,7 @@ public class HasOneAssociationEmbedded implements AssociationEmbedded {
         this.name = name;
         Map childMap = (Map) document.attributes().get(name);
         if (childMap != null) {
-            child = (Document) ReflectHelper.staticMethod(kclass, "create", childMap);
+            child = (Document) ReflectHelper.staticMethod(kclass, "create9", childMap);
             child._parent = document;
             child.associationEmbeddedName = name;
         }
