@@ -6,6 +6,7 @@ import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import net.csdn.common.collections.WowCollections;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -104,11 +105,6 @@ public class Criteria {
 
     public <T> T findById(Object id) {
         return where(map("_id", id)).singleFetch();
-    }
-
-    //{ "$set" => { pending: false }}, new: true
-    public void find_and_modify() {
-
     }
 
     /*
@@ -290,9 +286,11 @@ public class Criteria {
         Map sort = (Map) options.get("sort");
         Integer skip = (Integer) options.get("skip");
         Integer limit = (Integer) options.get("limit");
+        Map fields = (Map) options.get("fields");
 
-
-        DBCursor dbCursor = collection().find(translateMapToDBObject(selector));
+        DBCursor dbCursor = fields == null
+                ? collection().find(translateMapToDBObject(selector))
+                : collection().find(translateMapToDBObject(selector), translateMapToDBObject(fields));
 
         if (sort != null)
             dbCursor.sort(translateMapToDBObject(sort));
@@ -403,10 +401,13 @@ public class Criteria {
 
         List<String> fields = (List) options.remove("fields");
         if (fields != null) {
+            Map fieldsMap = new HashMap();
             for (String str : fields) {
-                options.put(str, 1);
+                fieldsMap.put(str, 1);
             }
+            options.put("fields", fieldsMap);
         }
+
         Map<String, Object> sorting = (Map) options.get("sort");
         if (sorting != null) {
             Map<String, Object> newSorting = map();
