@@ -1,2 +1,7 @@
 /CSDNMongoMongo.iml
 /.DS_Store
+.idea/
+mongomongo.iml
+pom.xml
+src/main/
+target/
