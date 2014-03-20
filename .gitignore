@@ -2,7 +2,6 @@
 /.DS_Store
 .idea/
 mongomongo.iml
-pom.xml
 target/
 src/.DS_Store
 pom.xml.releaseBackup

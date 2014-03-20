@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.sonatype.oss</groupId>
+        <artifactId>oss-parent</artifactId>
+        <version>7</version>
+    </parent>
+
+    <groupId>net.csdn</groupId>
+    <artifactId>MongoMongo</artifactId>
+    <version>1.0</version>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>allwefantasy</id>
+            <name>WilliamZhu</name>
+            <email>allwefantasy@gmail.com</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git@github.com:allwefantasy/mongomongo.git</connection>
+        <developerConnection>scm:git:git@github.com:allwefantasy/mongomongo.git</developerConnection>
+        <url>https://github.com/allwefantasy/mongomongo</url>
+    </scm>
+
+    <issueManagement>
+        <system>github</system>
+        <url>https://github.com/allwefantasy/mongomongo/issues</url>
+    </issueManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>net.csdn</groupId>
+            <artifactId>csdn-common</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongo-java-driver</artifactId>
+            <version>2.11.4</version>
+        </dependency>
+    </dependencies>
+
+</project>
