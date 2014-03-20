@@ -3,5 +3,5 @@
 .idea/
 mongomongo.iml
 pom.xml
-src/main/
 target/
+src/.DS_Store
