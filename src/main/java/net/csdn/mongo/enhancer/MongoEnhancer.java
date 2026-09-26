@@ -12,6 +12,7 @@ import net.csdn.mongo.annotations.Validate;
 
 import java.io.DataInputStream;
 import java.lang.reflect.Modifier;
+import java.security.ProtectionDomain;
 import java.util.List;
 
 import static net.csdn.common.collections.WowCollections.list;
@@ -48,11 +49,17 @@ public class MongoEnhancer extends Enhancer {
             "findAll"
     );
 
+    /**
+     * Returns the enhanced {@link CtClass} for {@code Document} subclasses only.
+     * Other classes in the scanned package — including a
+     * {@code ServiceFrameworkPackageAnchor} — are not enhanced and must not be
+     * defined again by {@link #enhanceThisClass2}.
+     */
     @Override
     public CtClass enhanceThisClass(DataInputStream dataInputStream) throws Exception {
         CtClass ctClass = classPool.makeClassIfNew(dataInputStream);
         if (!ctClass.subtypeOf(classPool.get("net.csdn.mongo.Document"))) {
-            return ctClass;
+            return null;
         }
         CtClass document = ctClass.getSuperclass();
 
@@ -102,6 +109,22 @@ public class MongoEnhancer extends Enhancer {
     }
 
 
+    private static String boxedValue(CtClass type, String expression) {
+        if (!type.isPrimitive()) {
+            return expression;
+        }
+        String name = type.getName();
+        if ("boolean".equals(name)) return "java.lang.Boolean.valueOf(" + expression + ")";
+        if ("byte".equals(name)) return "java.lang.Byte.valueOf(" + expression + ")";
+        if ("char".equals(name)) return "java.lang.Character.valueOf(" + expression + ")";
+        if ("short".equals(name)) return "java.lang.Short.valueOf(" + expression + ")";
+        if ("int".equals(name)) return "java.lang.Integer.valueOf(" + expression + ")";
+        if ("long".equals(name)) return "java.lang.Long.valueOf(" + expression + ")";
+        if ("float".equals(name)) return "java.lang.Float.valueOf(" + expression + ")";
+        if ("double".equals(name)) return "java.lang.Double.valueOf(" + expression + ")";
+        return expression;
+    }
+
     private boolean isFinal(CtField ctField) {
         return Modifier.isFinal(ctField.getModifiers());
     }
@@ -136,10 +159,12 @@ public class MongoEnhancer extends Enhancer {
                 getMethod.setModifiers(getMethod.getModifiers() | AccessFlag.SYNTHETIC);
                 ctClass.addMethod(getMethod);
             }
+            // Javassist compiles the setter body without autoboxing; wrap
+            // primitive values before they go into the Map attributes.
             String methodBody = MessageFormat.format(
                     "attributes.put({},{});",
                     "translateFromAlias(\"" + originalPropertyName + "\")",
-                    "value"
+                    boxedValue(ctField.getType(), "value")
             );
             try {
                 CtMethod ctMethod = ctClass.getDeclaredMethod(setter);
@@ -312,12 +337,68 @@ public class MongoEnhancer extends Enhancer {
 
     }
 
+    /**
+     * Conventional anchor name for package-local definition on JDK 9+.
+     * Same contract as serviceframework-mongo: put a compiled
+     * {@code <document package>.ServiceFrameworkPackageAnchor} in the target
+     * class loader, or pass a configuration marker class that already lives in
+     * the document package.
+     */
+    public static final String ANCHOR_SIMPLE_NAME = "ServiceFrameworkPackageAnchor";
+
+    /**
+     * Defines each enhanced class into the configuration's loader.
+     * <p>
+     * JDK 8 uses {@link CtClass#toClass(ClassLoader, ProtectionDomain)}. JDK 9+
+     * forbids that reflective {@code ClassLoader.defineClass} path without
+     * {@code --add-opens}, so a same-package neighbor class is used instead
+     * (Javassist drives {@code MethodHandles.privateLookupIn} on it). The
+     * neighbor is the configuration marker class when it shares the document
+     * package, otherwise {@code <package>.ServiceFrameworkPackageAnchor} loaded
+     * from the target loader.
+     */
     @Override
     public void enhanceThisClass2(List<CtClass> ctClasses) throws Exception {
+        Class<?> marker = MongoMongo.getMongoConfiguration().getClassLoader();
+        ClassLoader loader = marker.getClassLoader();
+        ProtectionDomain domain = marker.getProtectionDomain();
         for (CtClass ctClass : ctClasses) {
-            logger.info(MongoMongo.getMongoConfiguration().getClassLoader().getClassLoader() + " load " + ctClass.getName());
-            ctClass.toClass(MongoMongo.getMongoConfiguration().getClassLoader().getClassLoader(), MongoMongo.getMongoConfiguration().getClassLoader().getProtectionDomain());
+            logger.info(loader + " load " + ctClass.getName());
+            if (java8Runtime()) {
+                ctClass.toClass(loader, domain);
+            } else {
+                Class<?> neighbor = anchorFor(ctClass.getPackageName(), marker, loader, domain);
+                ctClass.getClassPool().toClass(ctClass, neighbor, loader, domain);
+            }
         }
+    }
+
+    private static boolean java8Runtime() {
+        return System.getProperty("java.specification.version", "").startsWith("1.");
+    }
+
+    private static Class<?> anchorFor(String packageName, Class<?> marker, ClassLoader loader, ProtectionDomain domain) {
+        String pkg = packageName == null ? "" : packageName;
+        Package markerPackage = marker.getPackage();
+        String markerPkg = markerPackage == null ? "" : markerPackage.getName();
+        if (marker.getClassLoader() == loader
+                && marker.getProtectionDomain() == domain
+                && markerPkg.equals(pkg)) {
+            return marker;
+        }
+        String anchorName = pkg.length() == 0 ? ANCHOR_SIMPLE_NAME : pkg + "." + ANCHOR_SIMPLE_NAME;
+        try {
+            Class<?> anchor = Class.forName(anchorName, false, loader);
+            if (anchor.getClassLoader() == loader && anchor.getProtectionDomain() == domain) {
+                return anchor;
+            }
+        } catch (ClassNotFoundException ignored) {
+        }
+        throw new IllegalStateException(
+                "cannot define document classes in package \"" + pkg + "\" on JDK 9+: "
+                        + "add a compiled " + anchorName + " class to the target class loader "
+                        + "(or pass a configuration marker class inside that package). "
+                        + "JDK 8 runtimes do not need the anchor.");
     }
 
 

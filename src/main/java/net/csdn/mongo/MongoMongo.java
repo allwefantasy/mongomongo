@@ -1,9 +1,15 @@
 package net.csdn.mongo;
 
 import com.google.inject.Injector;
+import com.mongodb.BasicDBObject;
+import com.mongodb.CommandResult;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
-import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoClientURI;
+import com.mongodb.MongoCredential;
+import com.mongodb.ServerAddress;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.LoaderClassPath;
@@ -18,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * User: WilliamZhu
@@ -25,17 +32,41 @@ import java.util.Map;
  * Time: 下午3:21
  * <p/>
  * <p/>
- * The +MongoMongo+ class is the wrapper of  MongoDB driver in order to
+ * The +MongoMongo+ class is the wrapper of the MongoDB driver in order to
  * get +DB+ Object.So we can use +DB+ to get collection
  * </p>
+ *
+ * <p>
+ * Driver notes for the 5.x upgrade: {@code com.mongodb.Mongo} no longer exists;
+ * this class holds a {@link MongoClient}. Connection settings are the same as
+ * serviceframework-mongo:
+ * <ul>
+ *   <li>{@code <mode>.datasources.mongodb.uri} — full {@code mongodb://} /
+ *       {@code mongodb+srv://} connection string. When set it wins over
+ *       host/port/username/password/authenticationDatabase; a database named
+ *       in the URI wins over {@code ...mongodb.database}.</li>
+ *   <li>{@code <mode>.datasources.mongodb.host} (default 127.0.0.1),
+ *       {@code .port} (27017), {@code .database} (csdn_data_center)</li>
+ *   <li>{@code .username} / {@code .password} /
+ *       {@code .authenticationDatabase} (or {@code .authdb}, default admin) —
+ *       SCRAM-SHA-256</li>
+ *   <li>{@code .replicaSet} — requiredReplicaSetName</li>
+ *   <li>{@code .disable}=true — configure() records the configuration but does
+ *       not connect and does not scan or define documents.</li>
+ * </ul>
+ * The URI is never echoed into exceptions or logs.
  */
 public class MongoMongo {
 
 
-    private Mongo mongo;
+    private MongoClient mongo;
     private String dbName;
+    private final CSDNMongoConfiguration configuration;
+    private final AtomicBoolean clientClosed = new AtomicBoolean();
 
-    private static CSDNMongoConfiguration mongoConfiguration;
+    private static volatile CSDNMongoConfiguration mongoConfiguration;
+    private static volatile MongoMongo current;
+    private static final Object LIFECYCLE_LOCK = new Object();
 
     public static CSDNMongoConfiguration getMongoConfiguration() {
         return mongoConfiguration;
@@ -46,23 +77,187 @@ public class MongoMongo {
     private static final String defaultDBName = "csdn_data_center";
 
 
+    /**
+     * Opens a caller-owned client. This constructor deliberately does not
+     * register {@link #current} or {@link Document#mongoMongo}; close the
+     * returned instance directly. It is rejected while a configure()-created
+     * client is still registered, so it cannot overwrite the active global
+     * configuration.
+     */
     public MongoMongo(CSDNMongoConfiguration csdnMongoConfiguration) throws Exception {
-        this.mongoConfiguration = csdnMongoConfiguration;
-        this.mongo = new Mongo(settings().get(mode() + ".datasources.mongodb.host", defaultHostName), mongoConfiguration.settings.getAsInt(mode() + ".datasources.mongodb.port", defaultHostPort));
-        dbName = settings().get(mode() + ".datasources.mongodb.database", defaultDBName);
+        if (csdnMongoConfiguration == null) {
+            throw new IllegalArgumentException("mongo configuration is required");
+        }
+        this.configuration = csdnMongoConfiguration;
+        synchronized (LIFECYCLE_LOCK) {
+            rejectConfiguredClient();
+            CSDNMongoConfiguration previous = mongoConfiguration;
+            mongoConfiguration = csdnMongoConfiguration;
+            try {
+                this.mongo = connect();
+            } catch (RuntimeException e) {
+                mongoConfiguration = previous;
+                throw e;
+            } catch (Error e) {
+                mongoConfiguration = previous;
+                throw e;
+            }
+        }
     }
 
-
-    public static void configure(CSDNMongoConfiguration csdnMongoConfiguration) {
-        MongoMongo mongoMongo = null;
-        try {
-            mongoMongo = new MongoMongo(csdnMongoConfiguration);
-            Document.mongoMongo = mongoMongo;
-            mongoMongo.loadDocuments();
-        } catch (Exception e) {
-            e.printStackTrace();
+    private MongoClient connect() {
+        String prefix = mode() + ".datasources.mongodb.";
+        String uri = settings().get(prefix + "uri");
+        MongoClientOptions.Builder options = MongoClientOptions.builder()
+                .serverSelectionTimeout(8000)
+                .connectTimeout(8000)
+                .socketTimeout(20000);
+        String replicaSet = settings().get(prefix + "replicaSet", "");
+        if (replicaSet != null && replicaSet.length() > 0) {
+            options.requiredReplicaSetName(replicaSet);
         }
+        MongoClient client;
+        if (uri != null && uri.trim().length() > 0) {
+            MongoClientURI mongoURI;
+            try {
+                mongoURI = new MongoClientURI(uri.trim(), options);
+            } catch (RuntimeException e) {
+                // The URI can carry credentials; do not echo it or the
+                // parser message (which may embed it) into the failure.
+                throw new IllegalArgumentException(
+                        "invalid mongodb uri for " + prefix + "uri (" + e.getClass().getName() + ")",
+                        null);
+            }
+            client = new MongoClient(mongoURI);
+            String uriDatabase = mongoURI.getDatabase();
+            this.dbName = (uriDatabase == null || uriDatabase.length() == 0)
+                    ? settings().get(prefix + "database", defaultDBName)
+                    : uriDatabase;
+        } else {
+            String host = settings().get(prefix + "host", defaultHostName);
+            int port = settings().getAsInt(prefix + "port", defaultHostPort);
+            String username = settings().get(prefix + "username", "");
+            String password = settings().get(prefix + "password");
+            String authDatabase = settings().get(prefix + "authenticationDatabase",
+                    settings().get(prefix + "authdb", "admin"));
+            if (username != null && username.length() > 0 && password == null) {
+                throw new IllegalArgumentException(
+                        prefix + "password is required when username is set");
+            }
+            ServerAddress address = new ServerAddress(host, port);
+            if (username == null || username.length() == 0) {
+                client = new MongoClient(address, options.build());
+            } else {
+                MongoCredential credential = MongoCredential.createScramSha256Credential(
+                        username, authDatabase, password.toCharArray());
+                client = new MongoClient(address, credential, options.build());
+            }
+            this.dbName = settings().get(prefix + "database", defaultDBName);
+        }
+        try {
+            CommandResult ping = client.getDB(this.dbName).command(new BasicDBObject("ping", 1));
+            if (!ping.ok()) {
+                throw new IllegalStateException(
+                        "mongo ping was not ok: " +
+                                (ping.getErrorMessage() == null ? "not ok" : ping.getErrorMessage()));
+            }
+        } catch (RuntimeException pingFailure) {
+            try {
+                client.close();
+            } catch (RuntimeException closeFailure) {
+                pingFailure.addSuppressed(closeFailure);
+            }
+            throw pingFailure;
+        }
+        return client;
+    }
 
+    private static void rejectConfiguredClient() {
+        if (current != null) {
+            throw new IllegalStateException(
+                    "mongo is already configured; call disconnect() before configuring another client");
+        }
+    }
+
+    /**
+     * Configures the one shared client and enhances documents. The standalone
+     * jar supports one registered configuration at a time: any second
+     * {@code configure} call, including a disabled one, is rejected before it
+     * can replace the global configuration until {@link #disconnect()} runs.
+     * Failures propagate; nothing stays half-connected and no client is leaked.
+     * When {@code <mode>.datasources.mongodb.disable} is true the configuration
+     * is remembered but no connection or scan happens.
+     */
+    public static void configure(CSDNMongoConfiguration csdnMongoConfiguration) {
+        if (csdnMongoConfiguration == null) {
+            throw new IllegalArgumentException("mongo configuration is required");
+        }
+        synchronized (LIFECYCLE_LOCK) {
+            rejectConfiguredClient();
+            CSDNMongoConfiguration previous = mongoConfiguration;
+            mongoConfiguration = csdnMongoConfiguration;
+            if (Boolean.TRUE.equals(csdnMongoConfiguration.settings.getAsBoolean(
+                    csdnMongoConfiguration.mode + ".datasources.mongodb.disable", Boolean.FALSE))) {
+                return;
+            }
+            MongoMongo mongoMongo = null;
+            try {
+                mongoMongo = new MongoMongo(csdnMongoConfiguration);
+                Document.mongoMongo = mongoMongo;
+                current = mongoMongo;
+                mongoMongo.loadDocuments();
+            } catch (Throwable e) {
+                Document.mongoMongo = null;
+                current = null;
+                mongoConfiguration = previous;
+                if (mongoMongo != null) {
+                    try {
+                        mongoMongo.close();
+                    } catch (Throwable closeFailure) {
+                        e.addSuppressed(closeFailure);
+                    }
+                }
+                if (e instanceof RuntimeException) {
+                    throw (RuntimeException) e;
+                }
+                if (e instanceof Error) {
+                    throw (Error) e;
+                }
+                throw new IllegalStateException("mongo configure failed: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Closes the driver client at most once. Repeated calls are no-ops.
+     */
+    public void close() {
+        if (clientClosed.compareAndSet(false, true)) {
+            mongo.close();
+        }
+    }
+
+    public boolean isClosed() {
+        return clientClosed.get();
+    }
+
+    /**
+     * Closes the registered configure() client and clears the shared
+     * references. Caller-owned instances made with {@code new MongoMongo(...)}
+     * are not registered here and are not closed by this method.
+     */
+    public static void disconnect() {
+        synchronized (LIFECYCLE_LOCK) {
+            MongoMongo active = current;
+            if (active != null) {
+                active.close();
+                if (mongoConfiguration == active.configuration) {
+                    mongoConfiguration = null;
+                }
+            }
+            Document.mongoMongo = null;
+            current = null;
+        }
     }
 
     public static String mode() {
@@ -70,7 +265,7 @@ public class MongoMongo {
     }
 
 
-    public Mongo mongo() {
+    public MongoClient mongo() {
         return mongo;
     }
 
@@ -174,7 +369,10 @@ public class MongoMongo {
             new MongoDocumentLoader().load();
             new MongoValidatorLoader().load();
         } catch (Exception e) {
-            e.printStackTrace();
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            }
+            throw new IllegalStateException("document loading failed: " + e.getMessage(), e);
         }
     }
 
@@ -189,9 +387,12 @@ public class MongoMongo {
 
                 public Class loaded(DataInputStream classFile) {
                     try {
-                        classList.add(enhancer.enhanceThisClass(classFile));
+                        CtClass enhanced = enhancer.enhanceThisClass(classFile);
+                        if (enhanced != null) {
+                            classList.add(enhanced);
+                        }
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        throw new IllegalStateException("document enhancement failed: " + e.getMessage(), e);
                     }
                     return null;
                 }

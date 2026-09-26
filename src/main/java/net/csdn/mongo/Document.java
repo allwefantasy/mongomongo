@@ -219,7 +219,7 @@ public class Document {
      index({ ssn: 1 }, { unique: true, name: "ssn_index" })
      */
     protected static void index(Map keys, Map indexOptions) {
-        parent$_collection.ensureIndex(translateMapToDBObject(keys), translateMapToDBObject(indexOptions));
+        parent$_collection.createIndex(translateMapToDBObject(keys), translateMapToDBObject(indexOptions));
     }
 
     public static DBObject translateMapToDBObject(Map map) {

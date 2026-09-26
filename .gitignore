@@ -6,3 +6,4 @@ target/
 src/.DS_Store
 pom.xml.releaseBackup
 release.properties
+.DS_Store

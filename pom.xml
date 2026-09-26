@@ -38,16 +38,59 @@
         <url>https://github.com/allwefantasy/mongomongo/issues</url>
     </issueManagement>
 
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- source/target 1.8 so javac 8 and 17 both build; bytecode major 52. -->
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <javassist.version>3.33.0-GA</javassist.version>
+        <mongodb.driver.version>5.13.0</mongodb.driver.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>net.csdn</groupId>
             <artifactId>csdn-common</artifactId>
             <version>1.0</version>
+            <exclusions>
+                <!-- csdn-common pins javassist:javassist 3.12.1.GA. The same
+                     package is supplied by org.javassist below; exclude the old
+                     jar so only one javassist is on the classpath. -->
+                <exclusion>
+                    <groupId>javassist</groupId>
+                    <artifactId>javassist</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
+            <groupId>org.javassist</groupId>
+            <artifactId>javassist</artifactId>
+            <version>${javassist.version}</version>
+        </dependency>
+        <!-- mongodb-driver-legacy keeps the com.mongodb.DB / DBCollection /
+             DBCursor / MongoClient API this library exposes. The legacy jar
+             alone is not enough: it needs mongodb-driver-core,
+             mongodb-driver-sync and bson at runtime. bson-record-codec is
+             excluded: it is the optional Java 17 Record codec (class major
+             61) pulled at runtime by mongodb-driver-core. The Document API
+             this library ships does not include that extension, and
+             driver-core tolerates the missing provider. -->
+        <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongo-java-driver</artifactId>
-            <version>2.11.4</version>
+            <artifactId>mongodb-driver-legacy</artifactId>
+            <version>${mongodb.driver.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.mongodb</groupId>
+                    <artifactId>bson-record-codec</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <profiles>
@@ -83,7 +126,18 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.1</version>
                 <executions>
                     <execution>
                         <id>attach-sources</id>
@@ -96,6 +150,11 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <configuration>
+                    <doclint>none</doclint>
+                    <quiet>true</quiet>
+                </configuration>
                 <executions>
                     <execution>
                         <id>attach-javadocs</id>
